@@ -5,8 +5,10 @@ Otodom.pl parser for apartment listings
 
 import requests
 from bs4 import BeautifulSoup
-from typing import List, Dict
+from typing import List, Dict, Optional
 import logging
+import re
+import os
 from base_parser import BaseParser
 
 logger = logging.getLogger(__name__)
@@ -18,6 +20,9 @@ class OtodomParser(BaseParser):
     def __init__(self, search_url: str, slack_webhook_url: str):
         super().__init__(slack_webhook_url)
         self.search_url = search_url
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
     
     def get_source_name(self) -> str:
         """Return source name"""
@@ -33,41 +38,39 @@ class OtodomParser(BaseParser):
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
-            listings = []
             
-            # Otodom uses article tags or div with specific classes
-            # Try multiple selectors
-            cards = soup.find_all('article', {'data-cy': 'listing-item'})
+            # Otodom uses data-cy="listing-item-link" for listing links
+            listing_links = soup.find_all('a', {'data-cy': 'listing-item-link'})
             
-            if not cards:
-                # Try alternative selectors
-                cards = soup.find_all('div', class_=lambda x: x and 'listing' in x.lower())
-            
-            if not cards:
+            if not listing_links:
                 logger.warning("⚠️  No listings found on Otodom page")
-                logger.debug("Trying more alternative selectors...")
-                
-                # Try finding by data attributes
-                cards = soup.find_all('article')
-                if not cards:
-                    # Save HTML for debugging
-                    with open('debug_otodom_page.html', 'w', encoding='utf-8') as f:
-                        f.write(soup.prettify())
-                    logger.info("💾 Saved page HTML to debug_otodom_page.html for inspection")
-                    return []
+                # Save HTML for debugging
+                with open('debug_otodom_page.html', 'w', encoding='utf-8') as f:
+                    f.write(soup.prettify())
+                logger.info("💾 Saved page HTML to debug_otodom_page.html for inspection")
+                return []
             
-            for card in cards:
+            logger.info(f"📋 Found {len(listing_links)} listing(s) on Otodom page")
+            
+            # Check if we need to filter for private listings
+            listing_type = os.getenv('LISTING_TYPE', 'private')
+            filter_private = listing_type == 'private'
+            
+            listings = []
+            for link in listing_links:
                 try:
-                    listing = self._parse_listing_card(card)
+                    listing = self._parse_listing_link(link, filter_private)
                     if listing:
                         listings.append(listing)
-                    else:
-                        logger.debug("Skipped card without ID")
                 except Exception as e:
-                    logger.error(f"❌ Error parsing card: {e}")
+                    logger.error(f"❌ Error parsing link: {e}")
                     continue
             
-            logger.info(f"📋 Found {len(listings)} listing(s) on Otodom page")
+            if filter_private and len(listings) < len(listing_links):
+                logger.info(f"🔍 Filtered to {len(listings)} private listing(s) (from {len(listing_links)} total)")
+            else:
+                logger.info(f"✅ Successfully parsed {len(listings)} listing(s)")
+            
             return listings
             
         except requests.RequestException as e:
@@ -77,94 +80,79 @@ class OtodomParser(BaseParser):
             logger.error(f"Unexpected error: {e}")
             return []
     
-    def _parse_listing_card(self, card) -> Dict:
-        """Parse individual listing card from Otodom (React-based site)"""
+    def _parse_listing_link(self, link, filter_private: bool = False) -> Optional[Dict]:
+        """Parse individual listing link from Otodom"""
         listing = {}
         
-        # Listing ID and URL
-        link_elem = card.find('a', href=True)
-        if link_elem and 'href' in link_elem.attrs:
-            url = link_elem['href']
-            if not url.startswith('http'):
-                url = 'https://www.otodom.pl' + url
-            listing['url'] = url
-            
-            # Extract ID from URL
-            if 'ID' in url:
-                parts = url.split('ID')
-                if len(parts) > 1:
-                    listing['id'] = 'OTODOM_ID' + parts[-1].split('.')[0].split('/')[0].split('?')[0]
-            else:
-                # Try to get ID from data attribute
-                listing_id = card.get('id') or card.get('data-id') or card.get('data-item-id')
-                if listing_id:
-                    listing['id'] = f'OTODOM_{listing_id}'
-            
-            # Extract title from URL (Otodom uses SEO-friendly URLs)
-            # Example: /pl/oferta/nowoczesne-mieszkanie-centrum-wysoki-standard-ID4yAgO
+        # Get URL
+        url = link.get('href', '')
+        if not url:
+            return None
+        
+        if not url.startswith('http'):
+            url = 'https://www.otodom.pl' + url
+        
+        listing['url'] = url
+        
+        # Extract ID from URL (e.g., ID4yA0z from /pl/oferta/...-ID4yA0z)
+        id_match = re.search(r'-ID([a-zA-Z0-9]+)$', url)
+        if id_match:
+            listing['id'] = f"OTODOM_{id_match.group(1)}"
+        else:
+            listing['id'] = f"OTODOM_{url.split('/')[-1]}"
+        
+        # Get title from title element inside link
+        title_elem = link.find('p', {'data-cy': 'listing-item-title'})
+        if title_elem:
+            listing['title'] = title_elem.get_text(strip=True)
+        else:
+            # Fallback: extract from URL
             url_parts = url.split('/')
-            for part in url_parts:
-                if 'ID' in part:
-                    # Get the part before ID
-                    title_part = part.split('-ID')[0]
-                    # Convert dashes to spaces and capitalize
-                    listing['title'] = title_part.replace('-', ' ').title()
-                    break
+            if len(url_parts) > 3:
+                slug = url_parts[-1]
+                title_slug = re.sub(r'-ID[a-zA-Z0-9]+$', '', slug)
+                listing['title'] = title_slug.replace('-', ' ').title()
+            else:
+                listing['title'] = 'Otodom Listing'
         
-        # Get all text from card for price and location extraction
-        card_text = card.get_text(separator='|', strip=True)
+        # Get parent element to find price, location, and private/business indicator
+        parent = link.find_parent('article') or link.find_parent('div', class_=lambda x: x and 'listing' in str(x).lower())
         
-        # Extract price from text
-        # Pattern: "4900 zł" or "4 900 zł"
-        import re
-        # Look for first occurrence of price (ignore "+ czynsz" parts)
-        price_match = re.search(r'(\d[\d\s]{1,10})\s*zł', card_text)
-        if price_match:
-            # Clean up the price
-            price_clean = price_match.group(1).strip()
-            listing['price'] = f"{price_clean} zł"
-        
-        # Extract location from text
-        # Pattern: Location names from Warsaw followed by comma
-        location_patterns = [
-            r'(Śródmieście|Wola|Mokotów|Praga|Żoliborz|Ochota|Ursynów|Bemowo|Bielany|Targówek|Wilanów|Włochy|Białołęka|Rembertów|Wawer|Ursus|Wesola)[,\s]+[^|]*Warszawa',
-            r'al\.\s+[^|]+,\s+[^|]+,\s+Warszawa',
-            r'ul\.\s+[^|]+,\s+[^|]+,\s+Warszawa'
-        ]
-        
-        for pattern in location_patterns:
-            location_match = re.search(pattern, card_text)
+        if parent:
+            parent_text = parent.get_text(separator=' ', strip=True)
+            
+            # Check if private listing
+            is_private = 'prywatne' in parent_text.lower() or 'oferta prywatna' in parent_text.lower()
+            
+            # Filter if needed
+            if filter_private and not is_private:
+                logger.debug(f"⏭️  Skipping non-private listing: {listing.get('title', 'Unknown')}")
+                return None
+            
+            # Extract price
+            price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł', parent_text)
+            if price_match:
+                price_str = price_match.group(1).replace(' ', '')
+                listing['price'] = f"{price_str} zł"
+            else:
+                listing['price'] = 'N/A'
+            
+            # Extract location
+            location_match = re.search(r'(?:ul\.\s+)?([A-ZŁŚĆŻŹ][a-ząćęłńóśźż\s]+(?:,\s*[A-ZŁŚĆŻŹ][a-ząćęłńóśźż\s]+)*)', parent_text)
             if location_match:
-                listing['location'] = location_match.group(0).strip()
-                break
-        
-        # If no location found, try simpler pattern
-        if not listing.get('location'):
-            # Just find "Warszawa" with surrounding text
-            location_match = re.search(r'[^|]{10,50}Warszawa[^|]{0,20}', card_text)
-            if location_match:
-                listing['location'] = location_match.group(0).strip()
-        
-        # Fallback: if still no title, use partial card text
-        if not listing.get('title') and card_text:
-            # Try to extract something meaningful from card text
-            text_parts = card_text.split('|')
-            for part in text_parts:
-                if len(part) > 20 and len(part) < 100 and 'zł' not in part and 'pokoi' not in part:
-                    listing['title'] = part.strip()
-                    break
+                location = location_match.group(1).strip()
+                if len(location) > 50:
+                    location = location[:50] + '...'
+                listing['location'] = location
+            else:
+                listing['location'] = 'Warszawa'
+        else:
+            listing['price'] = 'N/A'
+            listing['location'] = 'Warszawa'
         
         # Debug logging if data is missing
-        if not listing.get('title'):
-            logger.warning(f"⚠️  Could not extract title for Otodom listing ID: {listing.get('id', 'unknown')}")
-            logger.debug(f"URL: {listing.get('url', 'N/A')}")
-            logger.debug(f"Card text snippet: {card_text[:300]}")
-        
-        if not listing.get('price'):
-            logger.debug(f"⚠️  No price found for {listing.get('id', 'unknown')}")
-        
-        if not listing.get('location'):
-            logger.debug(f"⚠️  No location found for {listing.get('id', 'unknown')}")
+        if not listing.get('title') or listing['title'] == 'Otodom Listing':
+            logger.warning(f"⚠️  Could not extract proper title for: {listing.get('id')}")
+            logger.debug(f"URL: {url}")
         
         return listing if listing.get('id') else None
-

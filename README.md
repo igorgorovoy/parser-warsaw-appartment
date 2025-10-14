@@ -27,16 +27,16 @@ Automatic parser for apartment rental listings on **OLX.pl** and **Otodom.pl** w
 - Floors ❌ (not supported by OLX API)
 
 ### Otodom Parser
-⚠️ **Limited filtering**:
+⚠️ **Limited URL filtering**:
 - District ✅
 - Number of rooms ✅
 - Price range ✅
 - Area (m²) ✅
-- Furniture ❌ (shows all)
-- Pets allowed ❌ (shows all)
-- Private listings only ❌ (shows all)
+- Furniture ❌ (URL filter not available)
+- Pets allowed ❌ (URL filter not available)
+- Private listings only ⚠️ (filtered client-side by checking "prywatne" text)
 
-**Result**: Otodom will send MORE listings than OLX because it cannot filter by furniture, pets, and listing type. By default, Otodom is **disabled**. Enable it in `.env` if you want more results.
+**Result**: Otodom will send MORE listings than OLX because URL filters for furniture and pets are not available. Private listings are filtered client-side (by checking for "prywatne" text in listing), which means ALL listings are downloaded but only private ones are processed. By default, Otodom is **disabled**. Enable it in `.env` if you want more results.
 
 ## 🔧 Installation
 
