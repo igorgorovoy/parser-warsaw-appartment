@@ -3,9 +3,18 @@
 ## ✅ What's Been Created
 
 ### **Dual-Site Apartment Parser**
-- 🟦 **OLX.pl** parser - finds apartments on OLX
-- 🟩 **Otodom.pl** parser - finds apartments on Otodom  
-- Both run simultaneously and send results to same Slack channel
+- 🟦 **OLX.pl** parser - finds apartments on OLX (full filtering)
+- 🟩 **Otodom.pl** parser - finds apartments on Otodom (limited filtering)
+- Both can run simultaneously and send results to same Slack channel
+
+### ⚠️ **Important Limitation**
+Otodom API does NOT support filtering by:
+- Furniture (furnished/unfurnished)
+- Pets allowed
+- Listing type (private/agency)
+
+**This means Otodom will show MORE results** than OLX for same search criteria.
+**Recommendation**: Use OLX for precise filtering, enable Otodom only if you want additional results.
 
 ### **Key Features**
 - ✅ Works with both sites at once

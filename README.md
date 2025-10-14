@@ -14,6 +14,30 @@ Automatic parser for apartment rental listings on **OLX.pl** and **Otodom.pl** w
 - ✅ **SQLite database**: Reliable storage with per-source tracking
 - ✅ **Detailed logging**: Full history of all actions
 
+## ⚠️ Important: Parser Differences
+
+### OLX Parser
+✅ **Full filtering support**:
+- District ✅
+- Floors ✅
+- Furniture ✅
+- Pets allowed ✅
+- Number of rooms ✅
+- Price range ✅
+- Private listings only ✅
+
+### Otodom Parser
+⚠️ **Limited filtering**:
+- District ✅
+- Number of rooms ✅
+- Price range ✅
+- Area (m²) ✅
+- Furniture ❌ (shows all)
+- Pets allowed ❌ (shows all)
+- Private listings only ❌ (shows all)
+
+**Result**: Otodom will send MORE listings than OLX because it cannot filter by furniture, pets, and listing type. By default, Otodom is **disabled**. Enable it in `.env` if you want more results.
+
 ## 🔧 Installation
 
 ### 1. Clone the repository or download files
