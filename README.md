@@ -152,18 +152,37 @@ The URL is automatically built from these parameters at runtime.
 
 - `parser.py` - main parser script
 - `requirements.txt` - Python dependencies
-- `seen_listings.json` - automatically created to store IDs of seen listings
+- `listings.db` - SQLite database storing seen listings (automatically created)
 - `.env` - configuration file (create from `env.example`)
 - `run.sh` - convenient launch script
 
 ## 🔍 How uniqueness check works
 
-The parser stores IDs of all found listings in the `seen_listings.json` file. On each run, it compares new listings with already stored ones and sends only new ones to Slack.
+The parser uses an SQLite database (`listings.db`) to store all seen listings with their details (title, price, location, URL, timestamp). On each run, it checks if a listing ID already exists in the database before sending it to Slack.
 
-To reset the history and get all listings again, delete the file:
+**Benefits of database approach:**
+- More reliable than JSON files
+- Stores complete listing information
+- Tracks when listings were first seen
+- Prevents duplicate notifications
+
+To reset the history and get all listings again, delete the database:
 
 ```bash
-rm seen_listings.json
+rm listings.db
+```
+
+To view statistics, use the included script:
+
+```bash
+python3 db_stats.py
+```
+
+Or query the database directly:
+
+```bash
+sqlite3 listings.db "SELECT COUNT(*) FROM seen_listings"
+sqlite3 listings.db "SELECT * FROM seen_listings ORDER BY first_seen DESC LIMIT 5"
 ```
 
 ## 📝 Logging
@@ -227,9 +246,11 @@ OLX may have changed the HTML structure. You may need to update selectors in the
 ## ⚠️ Important Notes
 
 - **Ethics**: Use the parser responsibly. Don't create excessive load on OLX servers.
+- **Built-in Protection**: Parser automatically waits at least 60 seconds (1 minute) between requests to OLX to reduce server load.
 - **OLX Rules**: Familiarize yourself with OLX Terms of Service before use.
 - **Request Frequency**: Recommended interval is at least 5 minutes between checks.
 - **User-Agent**: The parser uses a standard browser User-Agent.
+- **Database**: All listings are stored in SQLite database for reliable duplicate prevention.
 
 ## 📧 Support
 

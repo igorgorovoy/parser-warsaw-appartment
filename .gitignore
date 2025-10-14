@@ -13,8 +13,10 @@ ENV/
 .env
 *.log
 
-# Дані парсера
+# Parser data
 seen_listings.json
+listings.db
+listings.db-journal
 
 # IDE
 .vscode/
