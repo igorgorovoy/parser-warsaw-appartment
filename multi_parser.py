@@ -53,8 +53,18 @@ def build_otodom_url() -> str:
     # Number of rooms
     rooms = os.getenv('ROOMS', 'three')
     rooms_map = {'one': '1', 'two': '2', 'three': '3', 'four': '4'}
+    rooms_display = {'one': '1 room', 'two': '2 rooms', 'three': '3 rooms', 'four': '4 rooms'}
     if rooms in rooms_map:
         params.append(f"roomsNumber=%5B{rooms_map[rooms]}%5D")
+    
+    # Furniture - Otodom doesn't have direct filter, will get all
+    furniture = os.getenv('FURNITURE', 'yes')
+    
+    # Pets - Otodom doesn't have direct filter, will get all
+    pets = os.getenv('PETS', 'Tak')
+    
+    # Private only - Otodom doesn't have direct filter in URL, will get all
+    listing_type = os.getenv('LISTING_TYPE', 'private')
     
     # Build URL
     if params:
@@ -62,7 +72,19 @@ def build_otodom_url() -> str:
     else:
         search_url = base_url
     
-    logger.info(f"🔗 Built Otodom URL")
+    # Log search criteria
+    logger.info("=" * 80)
+    logger.info("🔍 OTODOM SEARCH CRITERIA:")
+    logger.info(f"   District:     {district.capitalize()}")
+    logger.info(f"   Rooms:        {rooms_display.get(rooms, rooms)}")
+    logger.info(f"   Price:        {price_from} - {price_to} PLN")
+    logger.info(f"   Area:         {area_from} - {area_to} m²")
+    logger.info(f"   ⚠️  Note: Otodom API doesn't support filters for:")
+    logger.info(f"      - Furniture ({furniture})")
+    logger.info(f"      - Pets ({pets})")
+    logger.info(f"      - Listing type ({listing_type})")
+    logger.info(f"      These will show ALL listings matching other criteria")
+    logger.info("=" * 80)
     logger.debug(f"Full URL: {search_url}")
     return search_url
 
@@ -108,13 +130,13 @@ def main():
     
     if run_mode == 'loop':
         check_interval = int(os.getenv('CHECK_INTERVAL', '300'))  # Default 5 minutes
-        logger.info("=" * 80)
+        logger.info("\n" + "=" * 80)
         logger.info(f"🔄 Running in LOOP mode")
         logger.info(f"   Active parsers:  {', '.join([name for name, _ in parsers])}")
         logger.info(f"   Check interval:  {check_interval} seconds ({check_interval//60} minutes)")
         logger.info(f"   Request delay:   60 seconds (1 minute) per parser")
         logger.info(f"   Press Ctrl+C to stop")
-        logger.info("=" * 80)
+        logger.info("=" * 80 + "\n")
         
         try:
             iteration = 0
@@ -141,11 +163,11 @@ def main():
             logger.info("=" * 80)
             show_combined_statistics(parsers)
     else:
-        logger.info("=" * 80)
+        logger.info("\n" + "=" * 80)
         logger.info(f"▶️  Running in SINGLE CHECK mode")
         logger.info(f"   Active parsers: {', '.join([name for name, _ in parsers])}")
         logger.info(f"   Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info("=" * 80)
+        logger.info("=" * 80 + "\n")
         
         for name, parser in parsers:
             logger.info(f"\n▶️  Processing {name}...")

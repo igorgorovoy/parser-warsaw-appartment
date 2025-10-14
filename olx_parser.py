@@ -159,6 +159,7 @@ def build_search_url() -> str:
     
     # District
     district_id = os.getenv('DISTRICT_ID', '359')  # Default Śródmieście
+    district_names = {'359': 'Śródmieście', '373': 'Wola', '377': 'Mokotów'}
     if district_id:
         params.append(f"search[district_id]={district_id}")
     
@@ -204,7 +205,17 @@ def build_search_url() -> str:
     else:
         search_url = base_url
     
-    logger.info(f"🔗 Built search URL with {len(params)} parameters")
+    # Log search criteria
+    logger.info("=" * 80)
+    logger.info("🔍 OLX SEARCH CRITERIA:")
+    logger.info(f"   District:     {district_names.get(district_id, district_id)}")
+    logger.info(f"   Floors:       {os.getenv('FLOORS', '1,2,3,4,5,6,7,8,9')}")
+    logger.info(f"   Furniture:    {os.getenv('FURNITURE', 'yes')}")
+    logger.info(f"   Pets:         {os.getenv('PETS', 'Tak')}")
+    logger.info(f"   Rooms:        {os.getenv('ROOMS', 'three')}")
+    logger.info(f"   Price:        {os.getenv('PRICE_FROM', '4000')} - {os.getenv('PRICE_TO', '6000')} PLN")
+    logger.info(f"   Listing type: {os.getenv('LISTING_TYPE', 'private')}")
+    logger.info("=" * 80)
     logger.debug(f"Full URL: {search_url}")
     return search_url
 

@@ -175,8 +175,10 @@ The parser uses an SQLite database (`listings.db`) to store all seen listings wi
 To reset the history and get all listings again, delete the database:
 
 ```bash
-rm listings.db
+rm listings.db seen_listings.json
 ```
+
+**Note:** If you upgraded from an older version and get database errors, delete the old database to create a new one with the correct structure.
 
 To view statistics, use the included script:
 

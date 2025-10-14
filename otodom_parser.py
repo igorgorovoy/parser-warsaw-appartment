@@ -78,7 +78,7 @@ class OtodomParser(BaseParser):
             return []
     
     def _parse_listing_card(self, card) -> Dict:
-        """Parse individual listing card from Otodom"""
+        """Parse individual listing card from Otodom (React-based site)"""
         listing = {}
         
         # Listing ID and URL
@@ -89,7 +89,7 @@ class OtodomParser(BaseParser):
                 url = 'https://www.otodom.pl' + url
             listing['url'] = url
             
-            # Extract ID from URL or data attribute
+            # Extract ID from URL
             if 'ID' in url:
                 parts = url.split('ID')
                 if len(parts) > 1:
@@ -99,52 +99,72 @@ class OtodomParser(BaseParser):
                 listing_id = card.get('id') or card.get('data-id') or card.get('data-item-id')
                 if listing_id:
                     listing['id'] = f'OTODOM_{listing_id}'
+            
+            # Extract title from URL (Otodom uses SEO-friendly URLs)
+            # Example: /pl/oferta/nowoczesne-mieszkanie-centrum-wysoki-standard-ID4yAgO
+            url_parts = url.split('/')
+            for part in url_parts:
+                if 'ID' in part:
+                    # Get the part before ID
+                    title_part = part.split('-ID')[0]
+                    # Convert dashes to spaces and capitalize
+                    listing['title'] = title_part.replace('-', ' ').title()
+                    break
         
-        # Title - try multiple selectors
-        title_elem = card.find('h3')
-        if not title_elem:
-            title_elem = card.find('h2')
-        if not title_elem:
-            title_elem = card.find('h4')
-        if not title_elem:
-            # Try finding by aria-label or data-cy
-            title_elem = card.find(['div', 'span'], {'data-cy': 'listing-item-title'})
+        # Get all text from card for price and location extraction
+        card_text = card.get_text(separator='|', strip=True)
         
-        if title_elem:
-            listing['title'] = title_elem.get_text(strip=True)
-        else:
-            # Try to get text from the link
-            if link_elem:
-                title_text = link_elem.get('aria-label', '')
-                if not title_text:
-                    title_text = link_elem.get_text(strip=True)
-                if title_text and len(title_text) > 5:
-                    listing['title'] = title_text
+        # Extract price from text
+        # Pattern: "4900 zł" or "4 900 zł"
+        import re
+        # Look for first occurrence of price (ignore "+ czynsz" parts)
+        price_match = re.search(r'(\d[\d\s]{1,10})\s*zł', card_text)
+        if price_match:
+            # Clean up the price
+            price_clean = price_match.group(1).strip()
+            listing['price'] = f"{price_clean} zł"
         
-        # Price - try multiple selectors
-        price_elem = card.find('span', class_=lambda x: x and 'price' in x.lower())
-        if not price_elem:
-            price_elem = card.find('div', class_=lambda x: x and 'price' in x.lower())
-        if not price_elem:
-            price_elem = card.find(['span', 'div'], {'data-cy': 'listing-item-price'})
+        # Extract location from text
+        # Pattern: Location names from Warsaw followed by comma
+        location_patterns = [
+            r'(Śródmieście|Wola|Mokotów|Praga|Żoliborz|Ochota|Ursynów|Bemowo|Bielany|Targówek|Wilanów|Włochy|Białołęka|Rembertów|Wawer|Ursus|Wesola)[,\s]+[^|]*Warszawa',
+            r'al\.\s+[^|]+,\s+[^|]+,\s+Warszawa',
+            r'ul\.\s+[^|]+,\s+[^|]+,\s+Warszawa'
+        ]
         
-        if price_elem:
-            listing['price'] = price_elem.get_text(strip=True)
+        for pattern in location_patterns:
+            location_match = re.search(pattern, card_text)
+            if location_match:
+                listing['location'] = location_match.group(0).strip()
+                break
         
-        # Location - try multiple selectors
-        location_elem = card.find('span', class_=lambda x: x and 'location' in x.lower())
-        if not location_elem:
-            location_elem = card.find('div', class_=lambda x: x and 'location' in x.lower())
-        if not location_elem:
-            location_elem = card.find(['span', 'div', 'p'], {'data-cy': 'listing-item-location'})
+        # If no location found, try simpler pattern
+        if not listing.get('location'):
+            # Just find "Warszawa" with surrounding text
+            location_match = re.search(r'[^|]{10,50}Warszawa[^|]{0,20}', card_text)
+            if location_match:
+                listing['location'] = location_match.group(0).strip()
         
-        if location_elem:
-            listing['location'] = location_elem.get_text(strip=True)
+        # Fallback: if still no title, use partial card text
+        if not listing.get('title') and card_text:
+            # Try to extract something meaningful from card text
+            text_parts = card_text.split('|')
+            for part in text_parts:
+                if len(part) > 20 and len(part) < 100 and 'zł' not in part and 'pokoi' not in part:
+                    listing['title'] = part.strip()
+                    break
         
-        # Debug logging if title is missing
+        # Debug logging if data is missing
         if not listing.get('title'):
-            logger.warning(f"⚠️  Could not find title for Otodom listing ID: {listing.get('id', 'unknown')}")
-            logger.debug(f"Card HTML structure: {card.prettify()[:500]}")
+            logger.warning(f"⚠️  Could not extract title for Otodom listing ID: {listing.get('id', 'unknown')}")
+            logger.debug(f"URL: {listing.get('url', 'N/A')}")
+            logger.debug(f"Card text snippet: {card_text[:300]}")
+        
+        if not listing.get('price'):
+            logger.debug(f"⚠️  No price found for {listing.get('id', 'unknown')}")
+        
+        if not listing.get('location'):
+            logger.debug(f"⚠️  No location found for {listing.get('id', 'unknown')}")
         
         return listing if listing.get('id') else None
 

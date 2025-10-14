@@ -22,6 +22,9 @@ listings.db-journal
 debug_page.html
 debug_card.html
 debug_full_page.html
+debug_otodom_page.html
+debug_otodom_card.html
+debug_otodom_full_page.html
 
 # IDE
 .vscode/
