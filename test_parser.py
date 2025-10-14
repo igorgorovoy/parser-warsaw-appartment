@@ -14,7 +14,7 @@ def test_selectors():
     """Test different selectors on actual OLX page"""
     
     # Build URL from env
-    from parser import build_search_url
+    from olx_parser import build_search_url
     url = build_search_url()
     
     print("=" * 80)

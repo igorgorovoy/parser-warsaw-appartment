@@ -1,15 +1,18 @@
-# 🏠 OLX Parser for Warsaw Apartments
+# 🏠 Multi-Site Parser for Warsaw Apartments
 
-Automatic parser for apartment rental listings on OLX.pl with Slack notifications.
+Automatic parser for apartment rental listings on **OLX.pl** and **Otodom.pl** with Slack notifications.
 
 ## 📋 Features
 
-- ✅ Parse listings from OLX.pl based on your criteria
-- ✅ Uniqueness check (doesn't send duplicate listings)
-- ✅ Slack integration via Webhook
-- ✅ Beautiful message formatting in Slack
-- ✅ Two operation modes: single run or continuous monitoring
-- ✅ Logging of all actions
+- ✅ **Multi-site support**: Parse both OLX.pl and Otodom.pl simultaneously
+- ✅ **Uniqueness check**: Doesn't send duplicate listings
+- ✅ **Slack integration**: Real-time notifications via Webhook
+- ✅ **Beautiful formatting**: Well-structured messages in Slack with source tags
+- ✅ **Flexible configuration**: Enable/disable individual parsers
+- ✅ **Two operation modes**: Single run or continuous monitoring
+- ✅ **Rate limiting**: Built-in delays to reduce server load
+- ✅ **SQLite database**: Reliable storage with per-source tracking
+- ✅ **Detailed logging**: Full history of all actions
 
 ## 🔧 Installation
 
@@ -150,7 +153,10 @@ The URL is automatically built from these parameters at runtime.
 
 ## 📁 Files
 
-- `parser.py` - main parser script
+- `multi_parser.py` - main script that runs all parsers
+- `olx_parser.py` - OLX.pl parser
+- `otodom_parser.py` - Otodom.pl parser
+- `base_parser.py` - base class with shared functionality
 - `requirements.txt` - Python dependencies
 - `listings.db` - SQLite database storing seen listings (automatically created)
 - `.env` - configuration file (create from `env.example`)

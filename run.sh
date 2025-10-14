@@ -21,8 +21,8 @@ if [ ! -f ".env" ]; then
 fi
 
 # Run parser
-echo "🚀 Starting OLX parser..."
-python parser.py
+echo "🚀 Starting multi-site parser (OLX + Otodom)..."
+python multi_parser.py
 
 # Deactivate (if script completed)
 deactivate
