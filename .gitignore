@@ -18,6 +18,11 @@ seen_listings.json
 listings.db
 listings.db-journal
 
+# Debug files
+debug_page.html
+debug_card.html
+debug_full_page.html
+
 # IDE
 .vscode/
 .idea/

@@ -181,16 +181,16 @@ class OLXParser:
             if parts:
                 listing['id'] = parts[-1].replace('.html', '').split('#')[0]
         
-        # Title - try multiple selectors
-        title_elem = card.find('h6')
+        # Title - try multiple selectors (h4 is primary on OLX as of 2025-10)
+        title_elem = card.find('h4')
         if not title_elem:
             # Try alternative selectors
-            title_elem = card.find('h4')
+            title_elem = card.find('h6')
         if not title_elem:
             title_elem = card.find('a', {'data-cy': 'listing-ad-title'})
         if not title_elem:
             # Try any heading with class containing 'title'
-            title_elem = card.find(['h3', 'h4', 'h5', 'h6'], class_=lambda x: x and 'title' in x.lower())
+            title_elem = card.find(['h3', 'h5'], class_=lambda x: x and 'title' in x.lower())
         
         if title_elem:
             listing['title'] = title_elem.get_text(strip=True)

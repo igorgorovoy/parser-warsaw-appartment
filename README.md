@@ -240,8 +240,18 @@ OLX may have changed the HTML structure. You may need to update selectors in the
 ### Parser doesn't find new listings
 
 1. Check if the search URL is correct
-2. Delete `seen_listings.json` for testing
+2. Delete `listings.db` for testing
 3. Make sure there are new listings on OLX matching your criteria
+
+### Parser shows "No title" or missing data
+
+OLX may have changed their HTML structure. Run the test script to check selectors:
+
+```bash
+venv/bin/python3 test_parser.py
+```
+
+This will show which selectors work and save HTML samples for debugging.
 
 ## ⚠️ Important Notes
 
