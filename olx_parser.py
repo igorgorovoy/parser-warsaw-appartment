@@ -163,11 +163,9 @@ def build_search_url() -> str:
     if district_id:
         params.append(f"search[district_id]={district_id}")
     
-    # Floors (1-9, excluding ground floor)
-    floors = os.getenv('FLOORS', '1,2,3,4,5,6,7,8,9').split(',')
-    for i, floor in enumerate(floors):
-        if floor.strip():
-            params.append(f"search[filter_enum_floor_select][{i}]=floor_{floor.strip()}")
+    # NOTE: Floor filter is NOT supported by OLX API - it breaks the URL and causes random results
+    # Keeping the env var for documentation but not using it in the URL
+    # floors = os.getenv('FLOORS', '1,2,3,4,5,6,7,8,9')
     
     # Furnished
     furniture = os.getenv('FURNITURE', 'yes')
@@ -209,12 +207,12 @@ def build_search_url() -> str:
     logger.info("=" * 80)
     logger.info("🔍 OLX SEARCH CRITERIA:")
     logger.info(f"   District:     {district_names.get(district_id, district_id)}")
-    logger.info(f"   Floors:       {os.getenv('FLOORS', '1,2,3,4,5,6,7,8,9')}")
-    logger.info(f"   Furniture:    {os.getenv('FURNITURE', 'yes')}")
-    logger.info(f"   Pets:         {os.getenv('PETS', 'Tak')}")
     logger.info(f"   Rooms:        {os.getenv('ROOMS', 'three')}")
     logger.info(f"   Price:        {os.getenv('PRICE_FROM', '4000')} - {os.getenv('PRICE_TO', '6000')} PLN")
+    logger.info(f"   Furniture:    {os.getenv('FURNITURE', 'yes')}")
+    logger.info(f"   Pets:         {os.getenv('PETS', 'Tak')}")
     logger.info(f"   Listing type: {os.getenv('LISTING_TYPE', 'private')}")
+    logger.info(f"   ⚠️  Note: Floor filter not supported by OLX API")
     logger.info("=" * 80)
     logger.debug(f"Full URL: {search_url}")
     return search_url

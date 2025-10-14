@@ -19,12 +19,12 @@ Automatic parser for apartment rental listings on **OLX.pl** and **Otodom.pl** w
 ### OLX Parser
 ✅ **Full filtering support**:
 - District ✅
-- Floors ✅
-- Furniture ✅
-- Pets allowed ✅
 - Number of rooms ✅
 - Price range ✅
+- Furniture ✅
+- Pets allowed ✅
 - Private listings only ✅
+- Floors ❌ (not supported by OLX API)
 
 ### Otodom Parser
 ⚠️ **Limited filtering**:
