@@ -156,19 +156,7 @@ class BaseParser(ABC):
                 }
             ]
             
-            # Add image if available
-            image_url = listing.get('image_url')
-            if image_url:
-                logger.debug(f"Adding image to Slack message: {image_url[:80]}...")
-                blocks.append({
-                    "type": "image",
-                    "image_url": image_url,
-                    "alt_text": listing.get('title', 'Apartment image')
-                })
-            else:
-                logger.warning(f"No image_url in listing data for: {listing.get('title', 'Unknown')}")
-            
-            # Add listing details
+            # Add listing details FIRST
             blocks.extend([
                 {
                     "type": "section",
@@ -189,7 +177,23 @@ class BaseParser(ABC):
                         "type": "mrkdwn",
                         "text": f"<{listing.get('url', '#')}|View listing>"
                     }
-                },
+                }
+            ])
+            
+            # Add image AFTER details (Slack displays it better this way)
+            image_url = listing.get('image_url')
+            if image_url:
+                logger.debug(f"Adding image to Slack message: {image_url[:80]}...")
+                blocks.append({
+                    "type": "image",
+                    "image_url": image_url,
+                    "alt_text": listing.get('title', 'Apartment image')
+                })
+            else:
+                logger.warning(f"No image_url in listing data for: {listing.get('title', 'Unknown')}")
+            
+            # Add context and divider at the end
+            blocks.extend([
                 {
                     "type": "context",
                     "elements": [

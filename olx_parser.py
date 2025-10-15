@@ -65,12 +65,14 @@ class OLXParser(BaseParser):
                     logger.info("💾 Saved page HTML to debug_page.html for inspection")
                     return []
             
-            # Get district filter for client-side filtering
+            # Get district filter for client-side filtering (supports multiple districts)
             district_filter = os.getenv('DISTRICT_NAME', '')
+            # Support multiple districts separated by comma: "wola,srodmiescie,mokotow"
+            districts = [d.strip() for d in district_filter.split(',') if d.strip()] if district_filter else []
             
             for card in cards:
                 try:
-                    listing = self._parse_listing_card(card, filter_district=district_filter)
+                    listing = self._parse_listing_card(card, filter_districts=districts)
                     if listing:
                         listings.append(listing)
                     else:
@@ -79,11 +81,12 @@ class OLXParser(BaseParser):
                     logger.error(f"❌ Error parsing card: {e}")
                     continue
             
-            if district_filter:
+            if districts:
                 total_cards = len(cards)
                 filtered_count = len(listings)
                 if filtered_count < total_cards:
-                    logger.info(f"🔍 Filtered to {filtered_count} listing(s) in {district_filter.capitalize()} (from {total_cards} total)")
+                    districts_str = ', '.join([d.capitalize() for d in districts])
+                    logger.info(f"🔍 Filtered to {filtered_count} listing(s) in {districts_str} (from {total_cards} total)")
             
             logger.info(f"📋 Found {len(listings)} listing(s) on page")
             return listings
