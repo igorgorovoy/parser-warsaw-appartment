@@ -199,8 +199,11 @@ def build_search_url() -> str:
     """Build search URL from configuration parameters"""
     
     # District - use district name in URL path for proper filtering
-    district_name = os.getenv('DISTRICT_NAME', 'wola')  # Default: Wola
-    base_url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-{district_name}/"
+    # If multiple districts specified, use only the FIRST one in URL
+    # (others will be filtered client-side)
+    district_names = os.getenv('DISTRICT_NAME', 'wola')  # Default: Wola
+    first_district = district_names.split(',')[0].strip() if district_names else 'wola'
+    base_url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-{first_district}/"
     
     params = []
     
@@ -247,7 +250,11 @@ def build_search_url() -> str:
     # Log search criteria
     logger.info("=" * 80)
     logger.info("🔍 OLX SEARCH CRITERIA:")
-    logger.info(f"   District:     {district_name.capitalize()}")
+    if ',' in district_names:
+        districts_list = [d.strip().capitalize() for d in district_names.split(',')]
+        logger.info(f"   Districts:    {', '.join(districts_list)} (searching '{first_district}', filtering client-side)")
+    else:
+        logger.info(f"   District:     {first_district.capitalize()}")
     logger.info(f"   Rooms:        {os.getenv('ROOMS', 'three')}")
     logger.info(f"   Price:        {os.getenv('PRICE_FROM', '4000')} - {os.getenv('PRICE_TO', '6000')} PLN")
     logger.info(f"   Furniture:    {os.getenv('FURNITURE', 'yes')}")
