@@ -1,5 +1,13 @@
 # 🏠 Multi-Site Parser for Warsaw Apartments
 
+---
+
+![The Mechanical Apartment Hunter Mk. III](dfeee9ba-1358-4b09-8df5-081f6d7c9c6b.png)
+
+*"The Mechanical Apartment Hunter Mk. III" - A steampunk visualization of our multi-site apartment parser, where Victorian-era brass mechanisms work tirelessly to scan the digital realm of Warsaw's real estate market.*
+
+Automatic parser for apartment rental listings on **OLX.pl** and **Otodom.pl** with Slack notifications.
+
 ## 📋 Table of Contents
 
 - [🏠 Multi-Site Parser for Warsaw Apartments](#-multi-site-parser-for-warsaw-apartments)
@@ -47,13 +55,7 @@
     - [🔄 Data Flow](#-data-flow)
   - [📄 License](#-license)
 
----
 
-![The Mechanical Apartment Hunter Mk. III](dfeee9ba-1358-4b09-8df5-081f6d7c9c6b.png)
-
-*"The Mechanical Apartment Hunter Mk. III" - A steampunk visualization of our multi-site apartment parser, where Victorian-era brass mechanisms work tirelessly to scan the digital realm of Warsaw's real estate market.*
-
-Automatic parser for apartment rental listings on **OLX.pl** and **Otodom.pl** with Slack notifications.
 
 ##  Visual Representation
 
