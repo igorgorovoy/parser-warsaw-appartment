@@ -25,14 +25,13 @@ logger = logging.getLogger(__name__)
 def build_otodom_url() -> str:
     """Build Otodom search URL from configuration parameters"""
     # Otodom uses different URL structure
+    # NOTE: District in URL path causes 404 errors, so we search all Warsaw and filter client-side
     base_url = "https://www.otodom.pl/pl/wyniki/wynajem/mieszkanie/mazowieckie/warszawa"
     
     params = []
     
-    # District (dzielnica) - optional, can search all Warsaw or specific district
-    district = os.getenv('OTODOM_DISTRICT', '')
-    if district:
-        base_url += f"/{district}"
+    # District filtering is done CLIENT-SIDE in otodom_parser.py
+    # (Otodom doesn't support district in URL reliably)
     
     # Price range
     price_from = os.getenv('PRICE_FROM', '4000')
@@ -66,6 +65,9 @@ def build_otodom_url() -> str:
     # Private only - Otodom doesn't have direct filter in URL, will get all
     listing_type = os.getenv('LISTING_TYPE', 'private')
     
+    # Get district(s) for logging (filtered client-side)
+    district_str = os.getenv('OTODOM_DISTRICT', 'wola')
+    
     # Build URL
     if params:
         search_url = base_url + '?' + '&'.join(params)
@@ -75,7 +77,12 @@ def build_otodom_url() -> str:
     # Log search criteria
     logger.info("=" * 80)
     logger.info("🔍 OTODOM SEARCH CRITERIA:")
-    logger.info(f"   District:     {district.capitalize()}")
+    # Handle multiple districts
+    if ',' in district_str:
+        districts_list = [d.strip().capitalize() for d in district_str.split(',')]
+        logger.info(f"   Districts:    {', '.join(districts_list)} (filtered client-side)")
+    else:
+        logger.info(f"   District:     {district_str.capitalize()} (filtered client-side)")
     logger.info(f"   Rooms:        {rooms_display.get(rooms, rooms)}")
     logger.info(f"   Price:        {price_from} - {price_to} PLN")
     logger.info(f"   Area:         {area_from} - {area_to} m²")

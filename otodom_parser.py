@@ -149,26 +149,49 @@ class OtodomParser(BaseParser):
                     else:
                         listing['price'] = 'N/A'
             
-            # Extract location
-            location_match = re.search(r'(?:ul\.\s+)?([A-ZŁŚĆŻŹ][a-ząćęłńóśźż\s]+(?:,\s*[A-ZŁŚĆŻŹ][a-ząćęłńóśźż\s]+)*)', parent_text)
-            if location_match:
-                location = location_match.group(1).strip()
-                if len(location) > 50:
-                    location = location[:50] + '...'
-                listing['location'] = location
-            else:
-                listing['location'] = 'Warszawa'
+            # Extract location - look for district name in text
+            # Otodom format: "..., District, Warszawa, mazowieckie"
+            # Try to find known districts in text
+            districts_to_check = ['wola', 'śródmieście', 'mokotów', 'praga', 'żoliborz', 'ochota', 'ursynów', 'bielany', 'targówek', 'bemowo', 'włochy', 'ursus', 'wilanów', 'wawer', 'wesoła', 'rembertów', 'białołęka']
+            location_found = None
+            parent_text_lower = parent_text.lower()
             
-            # Client-side district filtering (if filter_private is enabled, we also filter by district)
-            if filter_private:
-                expected_district = os.getenv('OTODOM_DISTRICT', '')
-                if expected_district:
-                    location_lower = listing.get('location', '').lower()
-                    # Check if location contains the expected district
-                    # Common district names: Wola, Śródmieście, Mokotów, etc.
-                    if expected_district.lower() not in location_lower:
-                        logger.debug(f"⏭️  Skipping listing from '{listing.get('location', 'Unknown')}' (looking for '{expected_district}')")
-                        return None
+            for district in districts_to_check:
+                if district in parent_text_lower:
+                    # Found district, try to extract fuller location around it
+                    # Look for pattern: "district, Warszawa"
+                    pattern = rf'([^,]*{district}[^,]*),\s*warszawa'
+                    match = re.search(pattern, parent_text_lower, re.IGNORECASE)
+                    if match:
+                        location_found = match.group(1).strip().title()
+                        break
+            
+            if location_found:
+                listing['location'] = location_found + ', Warszawa'
+            else:
+                # Fallback: try original regex
+                location_match = re.search(r'ul\.\s+([^,]+),\s*([A-ZŁŚĆŻŹ][a-ząćęłńóśźż\s]+),\s*([A-ZŁŚĆŻŹ][a-ząćęłńóśźż\s]+)', parent_text)
+                if location_match:
+                    street = location_match.group(1).strip()
+                    district = location_match.group(2).strip()
+                    city = location_match.group(3).strip()
+                    listing['location'] = f"{district}, {city}"
+                else:
+                    listing['location'] = 'Warszawa'
+            
+            # Client-side district filtering - ALWAYS filter by district (independent of private filter)
+            # Supports multiple districts separated by comma: "wola,srodmiescie"
+            districts_str = os.getenv('OTODOM_DISTRICT', '')
+            if districts_str:
+                # Support multiple districts: "wola,srodmiescie,mokotow"
+                expected_districts = [d.strip() for d in districts_str.split(',') if d.strip()]
+                location_lower = listing.get('location', '').lower()
+                # Check if location contains ANY of the expected districts
+                match_found = any(district.lower() in location_lower for district in expected_districts)
+                if not match_found:
+                    districts_display = ', '.join(expected_districts)
+                    logger.debug(f"⏭️  Skipping listing from '{listing.get('location', 'Unknown')}' (looking for: {districts_display})")
+                    return None
             
             # Extract image
             img_elem = parent.find('img', src=True)

@@ -125,13 +125,41 @@ class BaseParser(ABC):
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Find images
+            # Detect source based on URL
+            is_otodom = 'otodom.pl' in listing_url
+            
+            # Otodom uses OLX CDN for photos, so check <picture> elements first
+            if is_otodom:
+                # Look for <picture> elements (Otodom's gallery)
+                pictures = soup.find_all('picture')
+                for pic in pictures:
+                    imgs = pic.find_all('img')
+                    for img in imgs:
+                        src = img.get('src', '')
+                        # Otodom stores photos on OLX CDN (apollo.olxcdn.com)
+                        # Photos have long base64-encoded URLs
+                        if 'apollo.olxcdn.com' in src and len(src) > 100:
+                            # Skip SVG, icons, logos
+                            if not src.endswith('.svg') and 'icon' not in src.lower() and 'logo' not in src.lower():
+                                logger.debug(f"Found Otodom photo in <picture>: {src[:80]}...")
+                                return src
+            
+            # Fallback: Find images
             for img in soup.find_all('img'):
                 src = img.get('src', '')
-                # Look for actual photos (not placeholders)
-                if 'apollo.olxcdn.com' in src and 'no_thumbnail' not in src:
-                    logger.debug(f"Found photo on detail page: {src[:80]}...")
-                    return src
+                
+                if is_otodom:
+                    # Otodom: also try apollo CDN (fallback)
+                    # Photos have long base64-encoded URLs
+                    if 'apollo.olxcdn.com' in src and len(src) > 100:
+                        if not src.endswith('.svg') and 'icon' not in src.lower() and 'logo' not in src.lower():
+                            logger.debug(f"Found Otodom photo on detail page: {src[:80]}...")
+                            return src
+                else:
+                    # OLX: look for actual photos (not placeholders)
+                    if 'apollo.olxcdn.com' in src and 'no_thumbnail' not in src:
+                        logger.debug(f"Found OLX photo on detail page: {src[:80]}...")
+                        return src
             
             logger.debug("No photos found on detail page")
             return None
@@ -145,13 +173,21 @@ class BaseParser(ABC):
         try:
             source = listing.get('source', self.get_source_name())
             
+            # Extract date from location for display
+            import re
+            location = listing.get('location', '')
+            date_display = ""
+            date_match = re.search(r'(\d{1,2}\s+\w+\s+\d{4})', location)
+            if date_match:
+                date_display = f" • {date_match.group(1)}"
+            
             # Build blocks
             blocks = [
                 {
                     "type": "header",
                     "text": {
                         "type": "plain_text",
-                        "text": f"🏠 New listing [{source}]: {listing.get('title', 'No title')}"
+                        "text": f"🏠 New listing [{source}]{date_display}: {listing.get('title', 'No title')}"
                     }
                 }
             ]
@@ -221,11 +257,53 @@ class BaseParser(ABC):
         except Exception as e:
             logger.error(f"Error sending to Slack: {e}")
     
+    def _extract_date_from_location(self, location: str) -> str:
+        """Extract date from location string for sorting"""
+        import re
+        from datetime import datetime
+        
+        # Try to extract date from "Warszawa, District - DD month YYYY" format
+        date_match = re.search(r'(\d{1,2})\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+(\d{4})', location.lower())
+        if date_match:
+            day = date_match.group(1)
+            month_pl = date_match.group(2)
+            year = date_match.group(3)
+            
+            # Polish month names to numbers
+            months = {
+                'stycznia': '01', 'lutego': '02', 'marca': '03', 'kwietnia': '04',
+                'maja': '05', 'czerwca': '06', 'lipca': '07', 'sierpnia': '08',
+                'września': '09', 'października': '10', 'listopada': '11', 'grudnia': '12'
+            }
+            
+            month_num = months.get(month_pl, '01')
+            try:
+                # Return YYYY-MM-DD for easy sorting
+                return f"{year}-{month_num}-{day.zfill(2)}"
+            except:
+                pass
+        
+        # If can't parse, return today's date (newest)
+        return datetime.now().strftime('%Y-%m-%d')
+    
     def process_new_listings(self):
         """Main method for processing new listings"""
         listings = self.fetch_listings()
-        new_count = 0
         
+        # Sort listings by date (newest first) for better organization
+        if listings:
+            logger.debug("Sorting listings by date...")
+            for listing in listings:
+                listing['_sort_date'] = self._extract_date_from_location(listing.get('location', ''))
+            
+            # Sort by date descending (newest first)
+            listings.sort(key=lambda x: x.get('_sort_date', ''), reverse=True)
+            logger.debug(f"Sorted {len(listings)} listings by date")
+        
+        new_count = 0
+        new_listings = []
+        
+        # Collect new listings first
         for listing in listings:
             listing_id = listing.get('id')
             listing['source'] = self.get_source_name()
@@ -254,9 +332,16 @@ class BaseParser(ABC):
                     logger.warning(f"   ⚠️  No image found (checked detail page too)")
                 logger.info("=" * 80)
                 
+                # Collect new listing instead of sending immediately
+                new_listings.append(listing)
+                new_count += 1
+        
+        # Send in REVERSE order so newest appear at TOP in Slack
+        if new_listings:
+            logger.info(f"📤 Sending {len(new_listings)} new listings in reverse order (newest at top)...")
+            for listing in reversed(new_listings):
                 self.send_to_slack(listing)
                 self._save_listing(listing)
-                new_count += 1
                 # Small delay between sends
                 time.sleep(1)
         
