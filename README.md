@@ -82,7 +82,10 @@ Edit `.env` and configure:
 - `SLACK_WEBHOOK_URL` - your Slack Webhook URL
 
 **Search parameters (all have default values):**
-- `DISTRICT_NAME` - district name (lowercase, e.g., wola, srodmiescie, mokotow)
+- `DISTRICT_NAME` - district name(s) (lowercase, comma-separated for multiple)
+  - Single: `wola`
+  - Multiple: `wola,srodmiescie,mokotow` ✨ NEW!
+- `OTODOM_DISTRICT` - district name(s) for Otodom (same format as above)
 - `FLOORS` - floors comma-separated (1,2,3,4,5,6,7,8,9) - ⚠️ NOT supported by OLX API
 - `FURNITURE` - furnished (yes/no)
 - `PETS` - pets allowed (Tak/Nie)
@@ -96,7 +99,11 @@ Edit `.env` and configure:
 ```bash
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 
+# Single district
 DISTRICT_NAME=wola
+
+# Or multiple districts (comma-separated)
+# DISTRICT_NAME=wola,srodmiescie,mokotow
 FURNITURE=yes
 PETS=Tak
 ROOMS=three

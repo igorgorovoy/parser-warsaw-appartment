@@ -160,14 +160,18 @@ class OtodomParser(BaseParser):
                 listing['location'] = 'Warszawa'
             
             # Client-side district filtering (if filter_private is enabled, we also filter by district)
+            # Supports multiple districts separated by comma
             if filter_private:
-                expected_district = os.getenv('OTODOM_DISTRICT', '')
-                if expected_district:
+                districts_str = os.getenv('OTODOM_DISTRICT', '')
+                if districts_str:
+                    # Support multiple districts: "wola,srodmiescie,mokotow"
+                    expected_districts = [d.strip() for d in districts_str.split(',') if d.strip()]
                     location_lower = listing.get('location', '').lower()
-                    # Check if location contains the expected district
-                    # Common district names: Wola, Śródmieście, Mokotów, etc.
-                    if expected_district.lower() not in location_lower:
-                        logger.debug(f"⏭️  Skipping listing from '{listing.get('location', 'Unknown')}' (looking for '{expected_district}')")
+                    # Check if location contains any of the expected districts
+                    match_found = any(district.lower() in location_lower for district in expected_districts)
+                    if not match_found:
+                        districts_display = ', '.join(expected_districts)
+                        logger.debug(f"⏭️  Skipping listing from '{listing.get('location', 'Unknown')}' (looking for: {districts_display})")
                         return None
             
             # Extract image
