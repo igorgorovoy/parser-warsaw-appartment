@@ -108,6 +108,13 @@ class OLXParser(BaseParser):
             url = link_elem['href']
             if not url.startswith('http'):
                 url = 'https://www.olx.pl' + url
+            
+            # Skip listings with extended search (from other districts)
+            # OLX adds listings from other districts when results are low
+            if 'reason=extended_search' in url:
+                logger.debug(f"⏭️  Skipping extended search listing (from other district): {url[:80]}...")
+                return None
+            
             listing['url'] = url
             
             # Extract ID from URL
