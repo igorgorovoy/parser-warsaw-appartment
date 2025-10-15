@@ -98,8 +98,8 @@ class OLXParser(BaseParser):
             logger.error(f"Unexpected error: {e}")
             return []
     
-    def _parse_listing_card(self, card, filter_district: str = None) -> Dict:
-        """Parse individual listing card with optional district filtering"""
+    def _parse_listing_card(self, card, filter_districts: list = None) -> Dict:
+        """Parse individual listing card with optional district filtering (supports multiple districts)"""
         listing = {}
         
         # Listing ID and URL
@@ -155,17 +155,19 @@ class OLXParser(BaseParser):
         if location_elem:
             listing['location'] = location_elem.get_text(strip=True)
             
-            # Filter by district if specified (client-side filtering)
-            if filter_district:
+            # Filter by districts if specified (client-side filtering, supports multiple districts)
+            if filter_districts:
                 location_lower = listing['location'].lower()
                 # Extract district from "Warszawa, District - Date" format
                 if ',' in location_lower:
                     parts = location_lower.split(',')
                     if len(parts) >= 2:
                         district_part = parts[1].strip().split(' - ')[0]
-                        # Check if the district matches (case-insensitive)
-                        if filter_district.lower() not in district_part:
-                            logger.debug(f"⏭️  Skipping listing from '{district_part}' (looking for '{filter_district}')")
+                        # Check if the district matches any of the allowed districts (case-insensitive)
+                        match_found = any(district.lower() in district_part for district in filter_districts)
+                        if not match_found:
+                            districts_str = ', '.join(filter_districts)
+                            logger.debug(f"⏭️  Skipping listing from '{district_part}' (looking for: {districts_str})")
                             return None
         
         # Image - try to find first image
