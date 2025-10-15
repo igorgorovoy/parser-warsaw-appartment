@@ -96,4 +96,3 @@ try:
     print("Check your Slack channel to see the message with photo.")
 except Exception as e:
     print(f"\n❌ Error: {e}")
-

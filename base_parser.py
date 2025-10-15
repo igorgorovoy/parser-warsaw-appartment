@@ -124,11 +124,14 @@ class BaseParser(ABC):
             # Add image if available
             image_url = listing.get('image_url')
             if image_url:
+                logger.debug(f"Adding image to Slack message: {image_url[:80]}...")
                 blocks.append({
                     "type": "image",
                     "image_url": image_url,
                     "alt_text": listing.get('title', 'Apartment image')
                 })
+            else:
+                logger.warning(f"No image_url in listing data for: {listing.get('title', 'Unknown')}")
             
             # Add listing details
             blocks.extend([
