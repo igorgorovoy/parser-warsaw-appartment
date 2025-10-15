@@ -129,13 +129,25 @@ class OtodomParser(BaseParser):
                 logger.debug(f"⏭️  Skipping non-private listing: {listing.get('title', 'Unknown')}")
                 return None
             
-            # Extract price
-            price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł', parent_text)
+            # Extract price - prioritize monthly rent price (with /miesiąc or /mies)
+            price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł\s*/\s*mies', parent_text)
             if price_match:
                 price_str = price_match.group(1).replace(' ', '')
-                listing['price'] = f"{price_str} zł"
+                listing['price'] = f"{price_str} zł/miesiąc"
             else:
-                listing['price'] = 'N/A'
+                # Fallback: try to find "czynsz" (rent) price
+                price_match = re.search(r'czynsz[:\s]*(\d[\d\s]*\d+|\d+)\s*zł', parent_text, re.IGNORECASE)
+                if price_match:
+                    price_str = price_match.group(1).replace(' ', '')
+                    listing['price'] = f"{price_str} zł/miesiąc"
+                else:
+                    # Last fallback: first price found
+                    price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł', parent_text)
+                    if price_match:
+                        price_str = price_match.group(1).replace(' ', '')
+                        listing['price'] = f"{price_str} zł"
+                    else:
+                        listing['price'] = 'N/A'
             
             # Extract location
             location_match = re.search(r'(?:ul\.\s+)?([A-ZŁŚĆŻŹ][a-ząćęłńóśźż\s]+(?:,\s*[A-ZŁŚĆŻŹ][a-ząćęłńóśźż\s]+)*)', parent_text)

@@ -25,12 +25,12 @@ logger = logging.getLogger(__name__)
 def build_otodom_url() -> str:
     """Build Otodom search URL from configuration parameters"""
     # Otodom uses different URL structure
-    base_url = "https://www.otodom.pl/pl/wyniki/wynajem/mieszkanie/mazowieckie/warszawa/warszawa/warszawa"
+    base_url = "https://www.otodom.pl/pl/wyniki/wynajem/mieszkanie/mazowieckie/warszawa"
     
     params = []
     
-    # District (dzielnica)
-    district = os.getenv('OTODOM_DISTRICT', 'srodmiescie')
+    # District (dzielnica) - optional, can search all Warsaw or specific district
+    district = os.getenv('OTODOM_DISTRICT', '')
     if district:
         base_url += f"/{district}"
     

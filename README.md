@@ -82,8 +82,8 @@ Edit `.env` and configure:
 - `SLACK_WEBHOOK_URL` - your Slack Webhook URL
 
 **Search parameters (all have default values):**
-- `DISTRICT_ID` - district ID (359 = Śródmieście)
-- `FLOORS` - floors comma-separated (1,2,3,4,5,6,7,8,9)
+- `DISTRICT_NAME` - district name (lowercase, e.g., wola, srodmiescie, mokotow)
+- `FLOORS` - floors comma-separated (1,2,3,4,5,6,7,8,9) - ⚠️ NOT supported by OLX API
 - `FURNITURE` - furnished (yes/no)
 - `PETS` - pets allowed (Tak/Nie)
 - `ROOMS` - number of rooms (one/two/three/four)
@@ -96,8 +96,7 @@ Edit `.env` and configure:
 ```bash
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 
-DISTRICT_ID=359
-FLOORS=1,2,3,4,5
+DISTRICT_NAME=wola
 FURNITURE=yes
 PETS=Tak
 ROOMS=three
@@ -159,11 +158,10 @@ By default, the parser searches for apartments with these parameters:
 All parameters are configured in the `.env` file:
 
 ```bash
-# District (ID can be found in the URL on OLX)
-DISTRICT_ID=359
+# District (lowercase name, found in OLX URL: /warszawa/q-DISTRICT_NAME/)
+DISTRICT_NAME=wola
 
-# Floors (comma-separated)
-FLOORS=1,2,3,4,5,6,7,8,9
+# Common districts: wola, srodmiescie, mokotow, praga-polnoc, praga-poludnie, bielany
 
 # Other parameters
 FURNITURE=yes        # yes/no

@@ -65,16 +65,25 @@ class OLXParser(BaseParser):
                     logger.info("💾 Saved page HTML to debug_page.html for inspection")
                     return []
             
+            # Get district filter for client-side filtering
+            district_filter = os.getenv('DISTRICT_NAME', '')
+            
             for card in cards:
                 try:
-                    listing = self._parse_listing_card(card)
+                    listing = self._parse_listing_card(card, filter_district=district_filter)
                     if listing:
                         listings.append(listing)
                     else:
-                        logger.debug("Skipped card without ID")
+                        logger.debug("Skipped card (no ID or filtered out)")
                 except Exception as e:
                     logger.error(f"❌ Error parsing card: {e}")
                     continue
+            
+            if district_filter:
+                total_cards = len(cards)
+                filtered_count = len(listings)
+                if filtered_count < total_cards:
+                    logger.info(f"🔍 Filtered to {filtered_count} listing(s) in {district_filter.capitalize()} (from {total_cards} total)")
             
             logger.info(f"📋 Found {len(listings)} listing(s) on page")
             return listings
@@ -86,8 +95,8 @@ class OLXParser(BaseParser):
             logger.error(f"Unexpected error: {e}")
             return []
     
-    def _parse_listing_card(self, card) -> Dict:
-        """Parse individual listing card"""
+    def _parse_listing_card(self, card, filter_district: str = None) -> Dict:
+        """Parse individual listing card with optional district filtering"""
         listing = {}
         
         # Listing ID and URL
@@ -142,6 +151,19 @@ class OLXParser(BaseParser):
         
         if location_elem:
             listing['location'] = location_elem.get_text(strip=True)
+            
+            # Filter by district if specified (client-side filtering)
+            if filter_district:
+                location_lower = listing['location'].lower()
+                # Extract district from "Warszawa, District - Date" format
+                if ',' in location_lower:
+                    parts = location_lower.split(',')
+                    if len(parts) >= 2:
+                        district_part = parts[1].strip().split(' - ')[0]
+                        # Check if the district matches (case-insensitive)
+                        if filter_district.lower() not in district_part:
+                            logger.debug(f"⏭️  Skipping listing from '{district_part}' (looking for '{filter_district}')")
+                            return None
         
         # Image - try to find first image
         img_elem = card.find('img', src=True)
@@ -170,15 +192,12 @@ class OLXParser(BaseParser):
 
 def build_search_url() -> str:
     """Build search URL from configuration parameters"""
-    base_url = "https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/"
+    
+    # District - use district name in URL path for proper filtering
+    district_name = os.getenv('DISTRICT_NAME', 'wola')  # Default: Wola
+    base_url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-{district_name}/"
     
     params = []
-    
-    # District
-    district_id = os.getenv('DISTRICT_ID', '359')  # Default Śródmieście
-    district_names = {'359': 'Śródmieście', '373': 'Wola', '377': 'Mokotów'}
-    if district_id:
-        params.append(f"search[district_id]={district_id}")
     
     # NOTE: Floor filter is NOT supported by OLX API - it breaks the URL and causes random results
     # Keeping the env var for documentation but not using it in the URL
@@ -223,7 +242,7 @@ def build_search_url() -> str:
     # Log search criteria
     logger.info("=" * 80)
     logger.info("🔍 OLX SEARCH CRITERIA:")
-    logger.info(f"   District:     {district_names.get(district_id, district_id)}")
+    logger.info(f"   District:     {district_name.capitalize()}")
     logger.info(f"   Rooms:        {os.getenv('ROOMS', 'three')}")
     logger.info(f"   Price:        {os.getenv('PRICE_FROM', '4000')} - {os.getenv('PRICE_TO', '6000')} PLN")
     logger.info(f"   Furniture:    {os.getenv('FURNITURE', 'yes')}")
