@@ -94,6 +94,33 @@ class OtodomParser(BaseParser):
             listing_type = os.getenv('LISTING_TYPE', 'private')
             filter_private = listing_type == 'private'
             
+            # Build district map from JSON for accurate filtering
+            districts_map = {}
+            if script_tags:
+                try:
+                    json_data = json.loads(script_tags[0].string)
+                    if 'props' in json_data and 'pageProps' in json_data['props']:
+                        data = json_data['props']['pageProps'].get('data', {})
+                        search_ads = data.get('searchAds', {})
+                        items = search_ads.get('items', [])
+                        
+                        for item in items:
+                            # Extract district from JSON (more accurate than text parsing)
+                            listing_id = f"ID{item.get('slug', '').split('-ID')[-1]}" if 'ID' in item.get('slug', '') else None
+                            if listing_id:
+                                location = item.get('location', {})
+                                reverse_geo = location.get('reverseGeocoding', {})
+                                locations = reverse_geo.get('locations', [])
+                                
+                                # Find district level location
+                                district = next((loc['name'] for loc in locations if loc.get('locationLevel') == 'district'), None)
+                                if district:
+                                    districts_map[listing_id] = district
+                        
+                        logger.debug(f"Extracted districts for {len(districts_map)} listings from JSON")
+                except Exception as e:
+                    logger.debug(f"Could not extract districts from JSON: {e}")
+            
             listings = []
             for link in listing_links:
                 try:
@@ -108,6 +135,18 @@ class OtodomParser(BaseParser):
                             current_location = listing.get('location', 'Warszawa')
                             listing['location'] = f"{current_location} - {date_str}"
                             logger.debug(f"Added date to {short_id}: {date_str}")
+                        
+                        # Filter by district using JSON data (more accurate)
+                        if short_id and short_id in districts_map:
+                            district_from_json = districts_map[short_id]
+                            districts_str = os.getenv('OTODOM_DISTRICT', '')
+                            if districts_str:
+                                expected_districts = [d.strip() for d in districts_str.split(',') if d.strip()]
+                                match_found = any(district.lower() in district_from_json.lower() for district in expected_districts)
+                                if not match_found:
+                                    districts_display = ', '.join(expected_districts)
+                                    logger.debug(f"⏭️  Skipping listing from '{district_from_json}' (looking for: {districts_display})")
+                                    continue
                         
                         # Remove temporary _short_id before saving
                         if '_short_id' in listing:
@@ -234,19 +273,8 @@ class OtodomParser(BaseParser):
                 else:
                     listing['location'] = 'Warszawa'
             
-            # Client-side district filtering - ALWAYS filter by district (independent of private filter)
-            # Supports multiple districts separated by comma: "wola,srodmiescie"
-            districts_str = os.getenv('OTODOM_DISTRICT', '')
-            if districts_str:
-                # Support multiple districts: "wola,srodmiescie,mokotow"
-                expected_districts = [d.strip() for d in districts_str.split(',') if d.strip()]
-                location_lower = listing.get('location', '').lower()
-                # Check if location contains ANY of the expected districts
-                match_found = any(district.lower() in location_lower for district in expected_districts)
-                if not match_found:
-                    districts_display = ', '.join(expected_districts)
-                    logger.debug(f"⏭️  Skipping listing from '{listing.get('location', 'Unknown')}' (looking for: {districts_display})")
-                    return None
+            # Note: District filtering is now done at fetch_listings level using JSON data
+            # This is more accurate than text parsing
             
             # Extract image
             img_elem = parent.find('img', src=True)
