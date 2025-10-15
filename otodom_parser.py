@@ -149,9 +149,12 @@ class OtodomParser(BaseParser):
         # Extract ID from URL (e.g., ID4yA0z from /pl/oferta/...-ID4yA0z)
         id_match = re.search(r'-ID([a-zA-Z0-9]+)$', url)
         if id_match:
-            listing['id'] = f"OTODOM_{id_match.group(1)}"
+            short_id = id_match.group(1)
+            listing['id'] = f"OTODOM_{short_id}"
+            listing['_short_id'] = f"ID{short_id}"  # For matching with dates_map
         else:
             listing['id'] = f"OTODOM_{url.split('/')[-1]}"
+            listing['_short_id'] = None
         
         # Get title from title element inside link
         title_elem = link.find('p', {'data-cy': 'listing-item-title'})
