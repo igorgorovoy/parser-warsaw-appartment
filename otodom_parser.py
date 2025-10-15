@@ -151,8 +151,10 @@ class OtodomParser(BaseParser):
             img_elem = parent.find('img', src=True)
             if img_elem:
                 img_src = img_elem.get('src', '')
+                logger.debug(f"Found img element for {listing.get('id')}: src length={len(img_src)}")
                 if img_src and img_src.startswith('http'):
                     listing['image_url'] = img_src
+                    logger.debug(f"Set image_url from src: {img_src[:80]}...")
                 else:
                     # Try srcset for better quality
                     srcset = img_elem.get('srcset', '')
@@ -162,11 +164,15 @@ class OtodomParser(BaseParser):
                         if urls:
                             # Take the last one (usually highest quality)
                             listing['image_url'] = urls[-1]
+                            logger.debug(f"Set image_url from srcset: {urls[-1][:80]}...")
                 # Also try data-cy="listing-item-image-source" for Otodom
                 if not listing.get('image_url'):
                     img_with_cy = parent.find('img', {'data-cy': 'listing-item-image-source'})
                     if img_with_cy and img_with_cy.get('src'):
                         listing['image_url'] = img_with_cy.get('src')
+                        logger.debug(f"Set image_url from data-cy: {listing['image_url'][:80]}...")
+            else:
+                logger.debug(f"No img element found in parent for {listing.get('id')}")
         else:
             listing['price'] = 'N/A'
             listing['location'] = 'Warszawa'

@@ -7,7 +7,7 @@ import sqlite3
 import time
 import requests
 import logging
-from typing import Dict
+from typing import Dict, Optional
 from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
@@ -53,6 +53,7 @@ class BaseParser(ABC):
                     price TEXT,
                     location TEXT,
                     url TEXT,
+                    image_url TEXT,
                     first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     sent_to_slack INTEGER DEFAULT 0
                 )
@@ -90,20 +91,54 @@ class BaseParser(ABC):
             conn = sqlite3.connect(self.db_file)
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT OR REPLACE INTO seen_listings (id, source, title, price, location, url, sent_to_slack)
-                VALUES (?, ?, ?, ?, ?, ?, 1)
+                INSERT OR REPLACE INTO seen_listings (id, source, title, price, location, url, image_url, sent_to_slack)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1)
             ''', (
                 listing.get('id'),
                 listing.get('source', self.get_source_name()),
                 listing.get('title', ''),
                 listing.get('price', ''),
                 listing.get('location', ''),
-                listing.get('url', '')
+                listing.get('url', ''),
+                listing.get('image_url', '')
             ))
             conn.commit()
             conn.close()
         except Exception as e:
             logger.error(f"Error saving listing to database: {e}")
+    
+    def _fetch_photo_from_detail_page(self, listing_url: str) -> Optional[str]:
+        """Fetch first photo from listing detail page"""
+        try:
+            logger.debug(f"Fetching photo from detail page: {listing_url[:80]}...")
+            
+            # Add small delay to avoid overwhelming the server
+            import time
+            time.sleep(0.5)
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+            }
+            response = requests.get(listing_url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Find images
+            for img in soup.find_all('img'):
+                src = img.get('src', '')
+                # Look for actual photos (not placeholders)
+                if 'apollo.olxcdn.com' in src and 'no_thumbnail' not in src:
+                    logger.debug(f"Found photo on detail page: {src[:80]}...")
+                    return src
+            
+            logger.debug("No photos found on detail page")
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Error fetching photo from detail page: {e}")
+            return None
     
     def send_to_slack(self, listing: Dict):
         """Send listing to Slack"""
@@ -200,6 +235,19 @@ class BaseParser(ABC):
                 logger.info(f"   Location: {listing.get('location', 'N/A')}")
                 logger.info(f"   URL:      {listing.get('url', 'N/A')}")
                 logger.info(f"   ID:       {listing_id}")
+                
+                # Try to get image_url from detail page if not present
+                if not listing.get('image_url'):
+                    logger.info(f"   ⚠️  No image in search results, fetching from detail page...")
+                    detail_photo = self._fetch_photo_from_detail_page(listing.get('url'))
+                    if detail_photo:
+                        listing['image_url'] = detail_photo
+                        logger.info(f"   ✅ Fetched photo from detail page")
+                
+                if listing.get('image_url'):
+                    logger.info(f"   📸 Image: {listing.get('image_url', 'N/A')[:80]}...")
+                else:
+                    logger.warning(f"   ⚠️  No image found (checked detail page too)")
                 logger.info("=" * 80)
                 
                 self.send_to_slack(listing)
