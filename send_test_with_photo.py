@@ -16,7 +16,7 @@ if not SLACK_WEBHOOK_URL:
 # Test message with photo
 test_listing = {
     'source': 'OLX',
-    'title': 'Тестове оголошення: Просторе 3-кімнатне з балконом',
+    'title': 'Test Listing: Spacious 3-room apartment with balcony',
     'price': '4500 zł',
     'location': 'Śródmieście, Warszawa',
     'url': 'https://www.olx.pl/d/oferta/test-listing-ID123abc',
@@ -96,4 +96,3 @@ try:
     print("Check your Slack channel to see the message with photo.")
 except Exception as e:
     print(f"\n❌ Error: {e}")
-
