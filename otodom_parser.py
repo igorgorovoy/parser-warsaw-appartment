@@ -39,6 +39,44 @@ class OtodomParser(BaseParser):
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
+            # Extract date information from JSON data (Otodom uses Next.js with JSON)
+            dates_map = {}
+            script_tags = soup.find_all('script', {'id': '__NEXT_DATA__'})
+            if script_tags:
+                try:
+                    import json
+                    from datetime import datetime
+                    json_data = json.loads(script_tags[0].string)
+                    
+                    # Navigate to listings in JSON
+                    if 'props' in json_data and 'pageProps' in json_data['props']:
+                        data = json_data['props']['pageProps'].get('data', {})
+                        search_ads = data.get('searchAds', {})
+                        items = search_ads.get('items', [])
+                        
+                        # Build a map of listing ID to date
+                        polish_months = {
+                            1: 'stycznia', 2: 'lutego', 3: 'marca', 4: 'kwietnia',
+                            5: 'maja', 6: 'czerwca', 7: 'lipca', 8: 'sierpnia',
+                            9: 'września', 10: 'października', 11: 'listopada', 12: 'grudnia'
+                        }
+                        
+                        for item in items:
+                            listing_id = f"ID{item.get('slug', '').split('-ID')[-1]}" if 'ID' in item.get('slug', '') else None
+                            date_created = item.get('dateCreated', '')
+                            
+                            if listing_id and date_created:
+                                try:
+                                    dt = datetime.strptime(date_created, '%Y-%m-%d %H:%M:%S')
+                                    polish_date = f"{dt.day} {polish_months[dt.month]} {dt.year}"
+                                    dates_map[listing_id] = polish_date
+                                except:
+                                    pass
+                        
+                        logger.debug(f"Extracted dates for {len(dates_map)} listings from JSON")
+                except Exception as e:
+                    logger.debug(f"Could not extract dates from JSON: {e}")
+            
             # Otodom uses data-cy="listing-item-link" for listing links
             listing_links = soup.find_all('a', {'data-cy': 'listing-item-link'})
             
@@ -61,6 +99,20 @@ class OtodomParser(BaseParser):
                 try:
                     listing = self._parse_listing_link(link, filter_private)
                     if listing:
+                        # Add date from JSON if available
+                        # Use _short_id (ID...) to match with dates_map keys
+                        short_id = listing.get('_short_id')
+                        if short_id and short_id in dates_map:
+                            date_str = dates_map[short_id]
+                            # Append date to location (like OLX does)
+                            current_location = listing.get('location', 'Warszawa')
+                            listing['location'] = f"{current_location} - {date_str}"
+                            logger.debug(f"Added date to {short_id}: {date_str}")
+                        
+                        # Remove temporary _short_id before saving
+                        if '_short_id' in listing:
+                            del listing['_short_id']
+                        
                         listings.append(listing)
                 except Exception as e:
                     logger.error(f"❌ Error parsing link: {e}")
