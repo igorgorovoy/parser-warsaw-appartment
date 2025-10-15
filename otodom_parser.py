@@ -77,8 +77,13 @@ class OtodomParser(BaseParser):
                 except Exception as e:
                     logger.debug(f"Could not extract dates from JSON: {e}")
             
-            # Otodom uses data-cy="listing-item-link" for listing links
+            # Otodom changed their selector - try multiple approaches
             listing_links = soup.find_all('a', {'data-cy': 'listing-item-link'})
+            
+            # Fallback: if no links found with data-cy, try href-based search
+            if not listing_links:
+                listing_links = soup.find_all('a', href=lambda x: x and '/pl/oferta/' in x)
+                logger.debug(f"Using fallback selector, found {len(listing_links)} links")
             
             if not listing_links:
                 logger.warning("⚠️  No listings found on Otodom page")
