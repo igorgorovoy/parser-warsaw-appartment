@@ -20,6 +20,7 @@ Otodom API does NOT support filtering by:
 - ✅ Works with both sites at once
 - ✅ Each listing tagged with source ([OLX] or [Otodom])
 - ✅ No duplicates - SQLite database tracks all seen listings
+- ✅ Photos included - First image from each listing displayed in Slack
 - ✅ Rate limiting - 60 seconds between requests per site
 - ✅ Detailed logging - full history of all actions
 - ✅ Flexible configuration - enable/disable each parser

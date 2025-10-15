@@ -115,7 +115,7 @@ class OtodomParser(BaseParser):
             else:
                 listing['title'] = 'Otodom Listing'
         
-        # Get parent element to find price, location, and private/business indicator
+        # Get parent element to find price, location, image, and private/business indicator
         parent = link.find_parent('article') or link.find_parent('div', class_=lambda x: x and 'listing' in str(x).lower())
         
         if parent:
@@ -146,6 +146,27 @@ class OtodomParser(BaseParser):
                 listing['location'] = location
             else:
                 listing['location'] = 'Warszawa'
+            
+            # Extract image
+            img_elem = parent.find('img', src=True)
+            if img_elem:
+                img_src = img_elem.get('src', '')
+                if img_src and img_src.startswith('http'):
+                    listing['image_url'] = img_src
+                else:
+                    # Try srcset for better quality
+                    srcset = img_elem.get('srcset', '')
+                    if srcset:
+                        # srcset format: "url1 1x, url2 2x"
+                        urls = [part.strip().split()[0] for part in srcset.split(',') if part.strip()]
+                        if urls:
+                            # Take the last one (usually highest quality)
+                            listing['image_url'] = urls[-1]
+                # Also try data-cy="listing-item-image-source" for Otodom
+                if not listing.get('image_url'):
+                    img_with_cy = parent.find('img', {'data-cy': 'listing-item-image-source'})
+                    if img_with_cy and img_with_cy.get('src'):
+                        listing['image_url'] = img_with_cy.get('src')
         else:
             listing['price'] = 'N/A'
             listing['location'] = 'Warszawa'

@@ -143,6 +143,23 @@ class OLXParser(BaseParser):
         if location_elem:
             listing['location'] = location_elem.get_text(strip=True)
         
+        # Image - try to find first image
+        img_elem = card.find('img', src=True)
+        if img_elem:
+            img_src = img_elem.get('src', '')
+            # OLX images can be in srcset or src
+            if img_src and img_src.startswith('http'):
+                listing['image_url'] = img_src
+            else:
+                # Try srcset for better quality
+                srcset = img_elem.get('srcset', '')
+                if srcset:
+                    # srcset format: "url1 150w, url2 300w, ..."
+                    # Take the first URL (already decent quality)
+                    urls = [part.strip().split()[0] for part in srcset.split(',') if part.strip()]
+                    if urls:
+                        listing['image_url'] = urls[0]
+        
         # Debug logging if title is missing
         if not listing.get('title'):
             logger.warning(f"⚠️  Could not find title for listing ID: {listing.get('id', 'unknown')}")

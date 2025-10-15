@@ -7,7 +7,8 @@ Automatic parser for apartment rental listings on **OLX.pl** and **Otodom.pl** w
 - ✅ **Multi-site support**: Parse both OLX.pl and Otodom.pl simultaneously
 - ✅ **Uniqueness check**: Doesn't send duplicate listings
 - ✅ **Slack integration**: Real-time notifications via Webhook
-- ✅ **Beautiful formatting**: Well-structured messages in Slack with source tags
+- ✅ **Beautiful formatting**: Well-structured messages in Slack with source tags and photos
+- ✅ **Photo display**: First image from each listing shown in Slack messages
 - ✅ **Flexible configuration**: Enable/disable individual parsers
 - ✅ **Two operation modes**: Single run or continuous monitoring
 - ✅ **Rate limiting**: Built-in delays to reduce server load

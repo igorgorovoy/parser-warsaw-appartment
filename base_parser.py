@@ -109,49 +109,64 @@ class BaseParser(ABC):
         """Send listing to Slack"""
         try:
             source = listing.get('source', self.get_source_name())
-            message = {
-                "blocks": [
-                    {
-                        "type": "header",
-                        "text": {
-                            "type": "plain_text",
-                            "text": f"🏠 New listing [{source}]: {listing.get('title', 'No title')}"
-                        }
-                    },
-                    {
-                        "type": "section",
-                        "fields": [
-                            {
-                                "type": "mrkdwn",
-                                "text": f"*Price:*\n{listing.get('price', 'Not specified')}"
-                            },
-                            {
-                                "type": "mrkdwn",
-                                "text": f"*Location:*\n{listing.get('location', 'Not specified')}"
-                            }
-                        ]
-                    },
-                    {
-                        "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": f"<{listing.get('url', '#')}|View listing>"
-                        }
-                    },
-                    {
-                        "type": "context",
-                        "elements": [
-                            {
-                                "type": "mrkdwn",
-                                "text": f"Source: *{source}* | ID: `{listing.get('id', 'unknown')}`"
-                            }
-                        ]
-                    },
-                    {
-                        "type": "divider"
+            
+            # Build blocks
+            blocks = [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain_text",
+                        "text": f"🏠 New listing [{source}]: {listing.get('title', 'No title')}"
                     }
-                ]
-            }
+                }
+            ]
+            
+            # Add image if available
+            image_url = listing.get('image_url')
+            if image_url:
+                blocks.append({
+                    "type": "image",
+                    "image_url": image_url,
+                    "alt_text": listing.get('title', 'Apartment image')
+                })
+            
+            # Add listing details
+            blocks.extend([
+                {
+                    "type": "section",
+                    "fields": [
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Price:*\n{listing.get('price', 'Not specified')}"
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Location:*\n{listing.get('location', 'Not specified')}"
+                        }
+                    ]
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"<{listing.get('url', '#')}|View listing>"
+                    }
+                },
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "mrkdwn",
+                            "text": f"Source: *{source}* | ID: `{listing.get('id', 'unknown')}`"
+                        }
+                    ]
+                },
+                {
+                    "type": "divider"
+                }
+            ])
+            
+            message = {"blocks": blocks}
             
             response = requests.post(
                 self.slack_webhook_url,
