@@ -1,37 +1,35 @@
-# 🏠 Multi-Site Parser for Warsaw Apartments
+# 🏠 Multi-site parser for searching the apartment in Warsaw
 
 ---
 
-![The Mechanical Apartment Hunter Mk. III](dfeee9ba-1358-4b09-8df5-081f6d7c9c6b.png)
+![The mechanical apartment hunter](dfeee9ba-1358-4b09-8df5-081f6d7c9c6b.png)
 
-*"The Mechanical Apartment Hunter Mk. III" - A steampunk visualization of our multi-site apartment parser, where Victorian-era brass mechanisms work tirelessly to scan the digital realm of Warsaw's real estate market.*
 
 Automatic parser for apartment rental listings on **OLX.pl** and **Otodom.pl** with Slack notifications.
 
 ## 📋 Table of Contents
 
-- [🏠 Multi-Site Parser for Warsaw Apartments](#-multi-site-parser-for-warsaw-apartments)
+- [🏠 Multi-site parser for searching the apartment in Warsaw](#-multi-site-parser-for-searching-the-apartment-in-warsaw)
   - [📋 Table of Contents](#-table-of-contents)
-  - [Visual Representation](#visual-representation)
   - [Features](#features)
-  - [⚠️ Important: Parser Differences](#️-important-parser-differences)
-    - [OLX Parser](#olx-parser)
-    - [Otodom Parser](#otodom-parser)
+  - [⚠️ Important: Parser differences](#️-important-parser-differences)
+    - [OLX parser](#olx-parser)
+    - [Otodom parser](#otodom-parser)
   - [Installation](#installation)
     - [1. Clone the repository or download files](#1-clone-the-repository-or-download-files)
     - [2. Install dependencies](#2-install-dependencies)
-    - [3. Configure Slack Webhook](#3-configure-slack-webhook)
+    - [3. Configure slack webhook](#3-configure-slack-webhook)
     - [4. Configure environment variables](#4-configure-environment-variables)
   - [Usage](#usage)
     - [Quick start (recommended)](#quick-start-recommended)
     - [Single run (manual)](#single-run-manual)
     - [Loop mode](#loop-mode)
-  - [⚙️ Search Parameters](#️-search-parameters)
+  - [Search Parameters](#search-parameters)
     - [Configuring parameters](#configuring-parameters)
-  - [📁 Files](#-files)
+  - [Files](#files)
   - [🔍 How uniqueness check works](#-how-uniqueness-check-works)
-  - [📝 Logging](#-logging)
-  - [🔄 Automation](#-automation)
+  - [Logging](#logging)
+  - [Automation](#automation)
     - [Cron (Linux/Mac)](#cron-linuxmac)
     - [Task Scheduler (Windows)](#task-scheduler-windows)
     - [Docker (optional)](#docker-optional)
@@ -42,23 +40,18 @@ Automatic parser for apartment rental listings on **OLX.pl** and **Otodom.pl** w
     - [Parser shows "No title" or missing data](#parser-shows-no-title-or-missing-data)
   - [⚠️ Important Notes](#️-important-notes)
   - [📧 Support](#-support)
-  - [🏗️ Architecture](#️-architecture)
-    - [📋 High-Level Architecture](#-high-level-architecture)
-    - [🔄 Agent Workflow](#-agent-workflow)
-    - [🔧 Parser Components](#-parser-components)
+  - [Architecture](#architecture)
+    - [High-Level Architecture](#high-level-architecture)
+    - [Agent Workflow](#agent-workflow)
+    - [Parser Components](#parser-components)
       - [1. **BaseParser** (Abstract Base Class)](#1-baseparser-abstract-base-class)
-      - [2. **OLXParser** (OLX.pl Implementation)](#2-olxparser-olxpl-implementation)
-      - [3. **OtodomParser** (Otodom.pl Implementation)](#3-otodomparser-otodompl-implementation)
+      - [2. **OLXParser** (OLX Implementation)](#2-olxparser-olx-implementation)
+      - [3. **OtodomParser** (Otodom Implementation)](#3-otodomparser-otodom-implementation)
       - [4. **MultiParser** (Orchestrator)](#4-multiparser-orchestrator)
-    - [🗄️ Database Schema](#️-database-schema)
-    - [📤 Slack Message Format](#-slack-message-format)
-    - [🔄 Data Flow](#-data-flow)
-  - [📄 License](#-license)
-
-
-
-##  Visual Representation
-
+    - [Database Schema](#database-schema)
+    - [Slack Message Format](#slack-message-format)
+    - [Data Flow](#data-flow)
+  - [License](#license)
 
 
 ## Features
@@ -74,9 +67,9 @@ Automatic parser for apartment rental listings on **OLX.pl** and **Otodom.pl** w
 - ✅ **SQLite database**: Reliable storage with per-source tracking
 - ✅ **Detailed logging**: Full history of all actions
 
-## ⚠️ Important: Parser Differences
+## ⚠️ Important: Parser differences
 
-### OLX Parser
+### OLX parser
 ✅ **Full filtering support**:
 - District ✅
 - Number of rooms ✅
@@ -86,7 +79,7 @@ Automatic parser for apartment rental listings on **OLX.pl** and **Otodom.pl** w
 - Private listings only ✅
 - Floors ❌ (not supported by OLX API)
 
-### Otodom Parser
+### Otodom parser
 ⚠️ **Limited URL filtering**:
 - District ✅
 - Number of rooms ✅
@@ -120,7 +113,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Configure Slack Webhook
+### 3. Configure slack webhook
 
 1. Go to https://api.slack.com/messaging/webhooks
 2. Create a new Incoming Webhook for your workspace
@@ -200,7 +193,7 @@ python3 parser.py
 
 Or set these parameters in the `.env` file.
 
-## ⚙️ Search Parameters
+##  Search Parameters
 
 By default, the parser searches for apartments with these parameters:
 
@@ -233,7 +226,7 @@ LISTING_TYPE=private  # private/business
 
 The URL is automatically built from these parameters at runtime.
 
-## 📁 Files
+##  Files
 
 - `multi_parser.py` - main script that runs all parsers
 - `olx_parser.py` - OLX.pl parser
@@ -275,7 +268,7 @@ sqlite3 listings.db "SELECT COUNT(*) FROM seen_listings"
 sqlite3 listings.db "SELECT * FROM seen_listings ORDER BY first_seen DESC LIMIT 5"
 ```
 
-## 📝 Logging
+##  Logging
 
 The parser logs all actions with timestamps. Logging levels:
 
@@ -283,7 +276,7 @@ The parser logs all actions with timestamps. Logging levels:
 - `WARNING` - warnings (no listings found)
 - `ERROR` - errors (network issues, parsing problems, etc.)
 
-## 🔄 Automation
+##  Automation
 
 ### Cron (Linux/Mac)
 
@@ -359,9 +352,9 @@ If you encounter issues:
 2. Make sure all dependencies are installed
 3. Verify that Slack Webhook is working
 
-## 🏗️ Architecture
+##  Architecture
 
-### 📋 High-Level Architecture
+### High-Level Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -390,7 +383,7 @@ If you encounter issues:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 🔄 Agent Workflow
+### Agent Workflow
 
 ```mermaid
 graph TD
@@ -428,7 +421,7 @@ graph TD
     style R fill:#ffcdd2
 ```
 
-### 🔧 Parser Components
+###  Parser Components
 
 #### 1. **BaseParser** (Abstract Base Class)
 **Location:** `base_parser.py`
@@ -450,7 +443,7 @@ graph TD
 - _extract_date_from_location()    # Parse dates from location strings
 ```
 
-#### 2. **OLXParser** (OLX.pl Implementation)
+#### 2. **OLXParser** (OLX Implementation)
 **Location:** `olx_parser.py`
 
 **Features:**
@@ -471,7 +464,7 @@ https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-wola/
 &search[private_business]=private
 ```
 
-#### 3. **OtodomParser** (Otodom.pl Implementation)
+#### 3. **OtodomParser** (Otodom Implementation)
 **Location:** `otodom_parser.py`
 
 **Features:**
@@ -502,7 +495,7 @@ https://www.otodom.pl/pl/wyniki/wynajem/mieszkanie/mazowieckie/warszawa
 - Search criteria logging
 - Main execution loop
 
-### 🗄️ Database Schema
+###  Database Schema
 
 ```sql
 CREATE TABLE seen_listings (
@@ -517,7 +510,7 @@ CREATE TABLE seen_listings (
 );
 ```
 
-### 📤 Slack Message Format
+###  Slack Message Format
 
 ```json
 {
@@ -546,7 +539,7 @@ CREATE TABLE seen_listings (
 }
 ```
 
-### 🔄 Data Flow
+###  Data Flow
 
 1. **Configuration** → Load from `.env`
 2. **URL Building** → Platform-specific search URLs
@@ -558,7 +551,7 @@ CREATE TABLE seen_listings (
 8. **Slack Notification** → Formatted message delivery
 9. **Storage** → Save to database for future uniqueness checks
 
-## 📄 License
+##  License
 
 This project is created for personal use. Use at your own discretion.
 
