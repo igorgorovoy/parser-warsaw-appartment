@@ -20,6 +20,18 @@ class OtodomParser(BaseParser):
     def __init__(self, search_url: str, slack_webhook_url: str):
         super().__init__(slack_webhook_url)
         self.search_url = search_url
+        # Створюємо сесію для збереження cookies між запитами
+        self.session = requests.Session()
+        
+        # Налаштування проксі, якщо вказано в змінних оточення
+        proxy_url = os.getenv('PROXY_URL')  # Формат: http://user:pass@host:port або http://host:port
+        if proxy_url:
+            self.session.proxies = {
+                'http': proxy_url,
+                'https': proxy_url
+            }
+            logger.info(f"🔐 Використання проксі-сервера: {proxy_url.split('@')[-1] if '@' in proxy_url else proxy_url}")
+        
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -30,22 +42,55 @@ class OtodomParser(BaseParser):
             'Upgrade-Insecure-Requests': '1',
             'Sec-Fetch-Dest': 'document',
             'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-Site': 'same-origin',
             'Sec-Fetch-User': '?1',
-            'Cache-Control': 'max-age=0'
+            'Cache-Control': 'max-age=0',
+            'Referer': 'https://www.otodom.pl/'
         }
+        self._initialized = False
     
     def get_source_name(self) -> str:
         """Return source name"""
         return "Otodom"
     
+    def _init_session(self):
+        """Ініціалізувати сесію відвідавши головну сторінку для отримання cookies"""
+        if self._initialized:
+            return
+        
+        try:
+            logger.debug("🔐 Ініціалізація сесії з Otodom (отримання cookies)...")
+            # Спочатку відвідуємо головну сторінку
+            home_headers = self.headers.copy()
+            home_headers['Sec-Fetch-Site'] = 'none'
+            home_headers.pop('Referer', None)
+            
+            response = self.session.get('https://www.otodom.pl/', headers=home_headers, timeout=30)
+            response.raise_for_status()
+            
+            logger.debug(f"✅ Сесія ініціалізована, отримано cookies: {len(self.session.cookies)} шт.")
+            self._initialized = True
+            
+            # Невелика затримка після ініціалізації
+            import time
+            time.sleep(2)
+            
+        except Exception as e:
+            logger.warning(f"⚠️  Не вдалося ініціалізувати сесію: {e}")
+            # Продовжуємо роботу навіть якщо не вдалося отримати cookies
+            self._initialized = True
+    
     def fetch_listings(self) -> List[Dict]:
         """Fetch list of listings from Otodom"""
         try:
+            # Ініціалізуємо сесію перед першим запитом
+            self._init_session()
+            
             self._wait_before_request()
             
             logger.info("🌐 Fetching listings from Otodom...")
-            response = requests.get(self.search_url, headers=self.headers, timeout=30)
+            # Використовуємо сесію замість прямого requests.get
+            response = self.session.get(self.search_url, headers=self.headers, timeout=30)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')

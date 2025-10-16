@@ -336,6 +336,42 @@ venv/bin/python3 test_parser.py
 
 This will show which selectors work and save HTML samples for debugging.
 
+### "403 Forbidden" error on Otodom (especially from servers)
+
+**Problem:** Otodom blocks requests from servers or non-Polish IP addresses.
+
+**Symptoms:**
+```
+ERROR - Error requesting Otodom: 403 Client Error: Forbidden
+```
+
+**Solutions:**
+
+1. **Test your connection first:**
+   ```bash
+   python3 test_proxy.py
+   ```
+   This will check if your IP is blocked and test proxy connections.
+
+2. **Use a proxy server (recommended for servers):**
+   - Add to `.env` file:
+     ```bash
+     PROXY_URL=http://your-proxy:port
+     # or with authentication:
+     PROXY_URL=http://username:password@proxy-server:port
+     ```
+   - The parser will automatically use it for Otodom requests.
+
+3. **Where to get a proxy:**
+   - **Free (for testing):** [free-proxy-list.net](https://free-proxy-list.net/) - filter by Poland
+   - **Paid (reliable):** Webshare.io (from $2.99/month), Smartproxy, Bright Data
+
+4. **Alternative: Use VPN with Polish IP** on your server
+
+**Note:** Works locally but not on server? This is normal - Otodom often blocks datacenter IPs.
+
+📚 **Detailed guide:** See [SERVER_SETUP.md](SERVER_SETUP.md) for complete troubleshooting.
+
 ## ⚠️ Important Notes
 
 - **Ethics**: Use the parser responsibly. Don't create excessive load on OLX servers.
