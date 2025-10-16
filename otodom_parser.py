@@ -75,6 +75,21 @@ class OtodomParser(BaseParser):
             import time
             time.sleep(2)
             
+        except requests.exceptions.ProxyError as e:
+            logger.warning(f"⚠️  Проксі не працює: {e}")
+            logger.info("🔄 Спроба без проксі...")
+            # Вимикаємо проксі і пробуємо ще раз
+            self.session.proxies.clear()
+            try:
+                response = self.session.get('https://www.otodom.pl/', headers=home_headers, timeout=30)
+                response.raise_for_status()
+                logger.info(f"✅ З'єднання без проксі успішне! Отримано cookies: {len(self.session.cookies)} шт.")
+                self._initialized = True
+                import time
+                time.sleep(2)
+            except Exception as inner_e:
+                logger.warning(f"⚠️  Не вдалося ініціалізувати сесію навіть без проксі: {inner_e}")
+                self._initialized = True
         except Exception as e:
             logger.warning(f"⚠️  Не вдалося ініціалізувати сесію: {e}")
             # Продовжуємо роботу навіть якщо не вдалося отримати cookies
@@ -90,8 +105,17 @@ class OtodomParser(BaseParser):
             
             logger.info("🌐 Fetching listings from Otodom...")
             # Використовуємо сесію замість прямого requests.get
-            response = self.session.get(self.search_url, headers=self.headers, timeout=30)
-            response.raise_for_status()
+            try:
+                response = self.session.get(self.search_url, headers=self.headers, timeout=30)
+                response.raise_for_status()
+            except requests.exceptions.ProxyError as e:
+                logger.warning(f"⚠️  Проксі не працює під час запиту: {e}")
+                logger.info("🔄 Повторна спроба без проксі...")
+                # Вимикаємо проксі і пробуємо ще раз
+                self.session.proxies.clear()
+                response = self.session.get(self.search_url, headers=self.headers, timeout=30)
+                response.raise_for_status()
+                logger.info("✅ Запит без проксі успішний!")
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
