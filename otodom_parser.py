@@ -75,6 +75,21 @@ class OtodomParser(BaseParser):
             import time
             time.sleep(2)
             
+        except requests.exceptions.ProxyError as e:
+            logger.warning(f"⚠️  Проксі не працює: {e}")
+            logger.info("🔄 Спроба без проксі...")
+            # Вимикаємо проксі і пробуємо ще раз
+            self.session.proxies.clear()
+            try:
+                response = self.session.get('https://www.otodom.pl/', headers=home_headers, timeout=30)
+                response.raise_for_status()
+                logger.info(f"✅ З'єднання без проксі успішне! Отримано cookies: {len(self.session.cookies)} шт.")
+                self._initialized = True
+                import time
+                time.sleep(2)
+            except Exception as inner_e:
+                logger.warning(f"⚠️  Не вдалося ініціалізувати сесію навіть без проксі: {inner_e}")
+                self._initialized = True
         except Exception as e:
             logger.warning(f"⚠️  Не вдалося ініціалізувати сесію: {e}")
             # Продовжуємо роботу навіть якщо не вдалося отримати cookies
@@ -90,8 +105,17 @@ class OtodomParser(BaseParser):
             
             logger.info("🌐 Fetching listings from Otodom...")
             # Використовуємо сесію замість прямого requests.get
-            response = self.session.get(self.search_url, headers=self.headers, timeout=30)
-            response.raise_for_status()
+            try:
+                response = self.session.get(self.search_url, headers=self.headers, timeout=30)
+                response.raise_for_status()
+            except requests.exceptions.ProxyError as e:
+                logger.warning(f"⚠️  Проксі не працює під час запиту: {e}")
+                logger.info("🔄 Повторна спроба без проксі...")
+                # Вимикаємо проксі і пробуємо ще раз
+                self.session.proxies.clear()
+                response = self.session.get(self.search_url, headers=self.headers, timeout=30)
+                response.raise_for_status()
+                logger.info("✅ Запит без проксі успішний!")
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
@@ -284,25 +308,45 @@ class OtodomParser(BaseParser):
                 logger.debug(f"⏭️  Skipping non-private listing: {listing.get('title', 'Unknown')}")
                 return None
             
-            # Extract price - prioritize monthly rent price (with /miesiąc or /mies)
-            price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł\s*/\s*mies', parent_text)
-            if price_match:
-                price_str = price_match.group(1).replace(' ', '')
+            # Extract price - look for main rental price first
+            # Pattern: "4500 zł/miesiąc" or "4500 zł/mies" 
+            main_price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł\s*/\s*mies', parent_text)
+            if main_price_match:
+                price_str = main_price_match.group(1).replace(' ', '')
                 listing['price'] = f"{price_str} zł/miesiąc"
             else:
-                # Fallback: try to find "czynsz" (rent) price
-                price_match = re.search(r'czynsz[:\s]*(\d[\d\s]*\d+|\d+)\s*zł', parent_text, re.IGNORECASE)
-                if price_match:
-                    price_str = price_match.group(1).replace(' ', '')
-                    listing['price'] = f"{price_str} zł/miesiąc"
-                else:
-                    # Last fallback: first price found
-                    price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł', parent_text)
+                # Fallback: try to find any price without /mies, but exclude czynsz
+                # First check if there's a czynsz price
+                czynsz_match = re.search(r'czynsz[:\s]*(\d[\d\s]*\d+|\d+)\s*zł', parent_text, re.IGNORECASE)
+                if czynsz_match:
+                    # If there's czynsz, look for price that's NOT the czynsz
+                    czynsz_start = czynsz_match.start()
+                    czynsz_end = czynsz_match.end()
+                    
+                    # Look for price before czynsz
+                    before_czynsz = parent_text[:czynsz_start]
+                    price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł(?!\s*/\s*mies)', before_czynsz)
                     if price_match:
                         price_str = price_match.group(1).replace(' ', '')
                         listing['price'] = f"{price_str} zł"
                     else:
                         listing['price'] = 'N/A'
+                else:
+                    # No czynsz found, look for any price
+                    price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł(?!\s*/\s*mies)', parent_text)
+                    if price_match:
+                        price_str = price_match.group(1).replace(' ', '')
+                        listing['price'] = f"{price_str} zł"
+                    else:
+                        listing['price'] = 'N/A'
+            
+            # Extract czynsz (service charge) separately
+            czynsz_match = re.search(r'czynsz[:\s]*(\d[\d\s]*\d+|\d+)\s*zł', parent_text, re.IGNORECASE)
+            if czynsz_match:
+                czynsz_str = czynsz_match.group(1).replace(' ', '')
+                listing['czynsz'] = f"{czynsz_str} zł/miesiąc"
+            else:
+                listing['czynsz'] = None
             
             # Extract location - look for district name in text
             # Otodom format: "..., District, Warszawa, mazowieckie"
