@@ -108,6 +108,7 @@ class OtodomParser(BaseParser):
             try:
                 response = self.session.get(self.search_url, headers=self.headers, timeout=30)
                 response.raise_for_status()
+                logger.debug("⏸️  Otodom request completed, processing results...")
             except requests.exceptions.ProxyError as e:
                 logger.warning(f"⚠️  Проксі не працює під час запиту: {e}")
                 logger.info("🔄 Повторна спроба без проксі...")
@@ -224,6 +225,12 @@ class OtodomParser(BaseParser):
                         # Filter by district using JSON data (more accurate)
                         if short_id and short_id in districts_map:
                             district_from_json = districts_map[short_id]
+                            
+                            # First check if it's Warsaw (basic city filter)
+                            if 'warszawa' not in district_from_json.lower() and 'warsaw' not in district_from_json.lower():
+                                logger.debug(f"⏭️  Skipping listing from '{district_from_json}' (not Warsaw)")
+                                continue
+                            
                             districts_str = os.getenv('OTODOM_DISTRICT', '')
                             if districts_str:
                                 expected_districts = [d.strip() for d in districts_str.split(',') if d.strip()]
@@ -300,8 +307,27 @@ class OtodomParser(BaseParser):
         if parent:
             parent_text = parent.get_text(separator=' ', strip=True)
             
-            # Check if private listing
-            is_private = 'prywatne' in parent_text.lower() or 'oferta prywatna' in parent_text.lower()
+            # Check if private listing - expanded keywords
+            parent_text_lower = parent_text.lower()
+            is_private = (
+                'prywatne' in parent_text_lower or 
+                'oferta prywatna' in parent_text_lower or
+                'od właściciela' in parent_text_lower or
+                'bezpośrednio' in parent_text_lower or
+                'bez pośrednika' in parent_text_lower
+            )
+            
+            # Check if it's clearly business (to exclude)
+            is_business = (
+                'agencja' in parent_text_lower or
+                'biuro nieruchomości' in parent_text_lower or
+                'biuro' in parent_text_lower or
+                'agent' in parent_text_lower
+            )
+            
+            # If it's clearly business, mark as non-private
+            if is_business:
+                is_private = False
             
             # Filter if needed
             if filter_private and not is_private:
