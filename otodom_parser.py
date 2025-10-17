@@ -306,8 +306,27 @@ class OtodomParser(BaseParser):
         if parent:
             parent_text = parent.get_text(separator=' ', strip=True)
             
-            # Check if private listing
-            is_private = 'prywatne' in parent_text.lower() or 'oferta prywatna' in parent_text.lower()
+            # Check if private listing - expanded keywords
+            parent_text_lower = parent_text.lower()
+            is_private = (
+                'prywatne' in parent_text_lower or 
+                'oferta prywatna' in parent_text_lower or
+                'od właściciela' in parent_text_lower or
+                'bezpośrednio' in parent_text_lower or
+                'bez pośrednika' in parent_text_lower
+            )
+            
+            # Check if it's clearly business (to exclude)
+            is_business = (
+                'agencja' in parent_text_lower or
+                'biuro nieruchomości' in parent_text_lower or
+                'biuro' in parent_text_lower or
+                'agent' in parent_text_lower
+            )
+            
+            # If it's clearly business, mark as non-private
+            if is_business:
+                is_private = False
             
             # Filter if needed
             if filter_private and not is_private:
