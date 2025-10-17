@@ -165,6 +165,12 @@ class OLXParser(BaseParser):
             # Filter by districts if specified (client-side filtering, supports multiple districts)
             if filter_districts:
                 location_lower = listing['location'].lower()
+                
+                # First check if it's Warsaw (basic city filter)
+                if 'warszawa' not in location_lower and 'warsaw' not in location_lower:
+                    logger.debug(f"⏭️  Skipping listing from '{listing['location']}' (not Warsaw)")
+                    return None
+                
                 # Extract district from "Warszawa, District - Date" format
                 if ',' in location_lower:
                     parts = location_lower.split(',')
@@ -205,9 +211,12 @@ class OLXParser(BaseParser):
 def build_search_url() -> str:
     """Build search URL from configuration parameters"""
     
-    # District - use district name in URL path for proper filtering
+    # District - use only the first district in URL path for proper filtering
+    # Multiple districts are handled by client-side filtering
     district_name = os.getenv('DISTRICT_NAME', 'wola')  # Default: Wola
-    base_url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-{district_name}/"
+    # Take only the first district for URL
+    first_district = district_name.split(',')[0].strip()
+    base_url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-{first_district}/"
     
     params = []
     
@@ -254,7 +263,15 @@ def build_search_url() -> str:
     # Log search criteria
     logger.info("=" * 80)
     logger.info("🔍 OLX SEARCH CRITERIA:")
-    logger.info(f"   District:     {district_name.capitalize()}")
+    
+    # Show all districts for filtering
+    all_districts = [d.strip().capitalize() for d in district_name.split(',') if d.strip()]
+    if len(all_districts) > 1:
+        logger.info(f"   Districts:    {', '.join(all_districts)} (filtered client-side)")
+        logger.info(f"   URL district: {first_district.capitalize()} (first district only)")
+    else:
+        logger.info(f"   District:     {first_district.capitalize()}")
+    
     logger.info(f"   Rooms:        {os.getenv('ROOMS', 'three')}")
     logger.info(f"   Price:        {os.getenv('PRICE_FROM', '4000')} - {os.getenv('PRICE_TO', '6000')} PLN")
     logger.info(f"   Furniture:    {os.getenv('FURNITURE', 'yes')}")

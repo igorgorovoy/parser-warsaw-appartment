@@ -224,6 +224,12 @@ class OtodomParser(BaseParser):
                         # Filter by district using JSON data (more accurate)
                         if short_id and short_id in districts_map:
                             district_from_json = districts_map[short_id]
+                            
+                            # First check if it's Warsaw (basic city filter)
+                            if 'warszawa' not in district_from_json.lower() and 'warsaw' not in district_from_json.lower():
+                                logger.debug(f"⏭️  Skipping listing from '{district_from_json}' (not Warsaw)")
+                                continue
+                            
                             districts_str = os.getenv('OTODOM_DISTRICT', '')
                             if districts_str:
                                 expected_districts = [d.strip() for d in districts_str.split(',') if d.strip()]
