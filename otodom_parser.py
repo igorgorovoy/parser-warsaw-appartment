@@ -108,6 +108,7 @@ class OtodomParser(BaseParser):
             try:
                 response = self.session.get(self.search_url, headers=self.headers, timeout=30)
                 response.raise_for_status()
+                logger.debug("⏸️  Otodom request completed, processing results...")
             except requests.exceptions.ProxyError as e:
                 logger.warning(f"⚠️  Проксі не працює під час запиту: {e}")
                 logger.info("🔄 Повторна спроба без проксі...")

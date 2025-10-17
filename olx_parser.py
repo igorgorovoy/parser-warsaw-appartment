@@ -37,59 +37,75 @@ class OLXParser(BaseParser):
         return "OLX"
     
     def fetch_listings(self) -> List[Dict]:
-        """Fetch list of listings from OLX"""
+        """Fetch list of listings from OLX for all districts"""
         try:
             self._wait_before_request()
             
             logger.info("🌐 Fetching listings from OLX...")
-            response = requests.get(self.search_url, headers=self.headers, timeout=30)
-            response.raise_for_status()
             
-            soup = BeautifulSoup(response.content, 'html.parser')
-            listings = []
+            # Get all district URLs
+            urls = build_search_urls()
+            all_listings = []
             
-            # OLX uses div with data-cy="l-card"
-            cards = soup.find_all('div', {'data-cy': 'l-card'})
-            
-            if not cards:
-                logger.warning("⚠️  No listings found on page")
-                logger.debug("Trying alternative selectors...")
+            for i, url in enumerate(urls, 1):
+                district = url.split('/q-')[1].split('/')[0] if '/q-' in url else 'unknown'
+                logger.info(f"🔍 Checking district {i}/{len(urls)}: {district}")
                 
-                # Try alternative card selector
-                cards = soup.find_all('div', class_=lambda x: x and 'offer' in x.lower())
-                if not cards:
-                    logger.warning("⚠️  Still no listings found with alternative selectors")
-                    # Save HTML for debugging
-                    with open('debug_page.html', 'w', encoding='utf-8') as f:
-                        f.write(soup.prettify())
-                    logger.info("💾 Saved page HTML to debug_page.html for inspection")
-                    return []
-            
-            # Get district filter for client-side filtering (supports multiple districts)
-            district_filter = os.getenv('DISTRICT_NAME', '')
-            # Support multiple districts separated by comma: "wola,srodmiescie,mokotow"
-            districts = [d.strip() for d in district_filter.split(',') if d.strip()] if district_filter else []
-            
-            for card in cards:
                 try:
-                    listing = self._parse_listing_card(card, filter_districts=districts)
-                    if listing:
-                        listings.append(listing)
-                    else:
-                        logger.debug("Skipped card (no ID or filtered out)")
+                    response = requests.get(url, headers=self.headers, timeout=30)
+                    response.raise_for_status()
+                    
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    
+                    # OLX uses div with data-cy="l-card"
+                    cards = soup.find_all('div', {'data-cy': 'l-card'})
+                    
+                    if not cards:
+                        logger.debug(f"⚠️  No listings found for district: {district}")
+                        continue
+                    
+                    logger.debug(f"📋 Found {len(cards)} cards for district: {district}")
+                    
+                    # Get district filter for client-side filtering (supports multiple districts)
+                    district_filter = os.getenv('DISTRICT_NAME', '')
+                    # Support multiple districts separated by comma: "wola,srodmiescie,mokotow"
+                    districts = [d.strip() for d in district_filter.split(',') if d.strip()] if district_filter else []
+                    
+                    district_listings = []
+                    for card in cards:
+                        try:
+                            listing = self._parse_listing_card(card, filter_districts=districts)
+                            if listing:
+                                district_listings.append(listing)
+                            else:
+                                logger.debug("Skipped card (no ID or filtered out)")
+                        except Exception as e:
+                            logger.error(f"❌ Error parsing card: {e}")
+                            continue
+                    
+                    if districts:
+                        total_cards = len(cards)
+                        filtered_count = len(district_listings)
+                        if filtered_count < total_cards:
+                            districts_str = ', '.join([d.capitalize() for d in districts])
+                            logger.debug(f"🔍 Filtered to {filtered_count} listing(s) in {districts_str} (from {total_cards} total)")
+                    
+                    logger.debug(f"📋 Found {len(district_listings)} listing(s) for district: {district}")
+                    all_listings.extend(district_listings)
+                    
+                    # Delay between requests to avoid overwhelming the server
+                    if i < len(urls):
+                        import random
+                        delay = random.uniform(2, 5)  # Random delay between 2-5 seconds
+                        logger.debug(f"⏸️  Waiting {delay:.1f} seconds before next district...")
+                        time.sleep(delay)
+                        
                 except Exception as e:
-                    logger.error(f"❌ Error parsing card: {e}")
+                    logger.error(f"❌ Error fetching district {district}: {e}")
                     continue
             
-            if districts:
-                total_cards = len(cards)
-                filtered_count = len(listings)
-                if filtered_count < total_cards:
-                    districts_str = ', '.join([d.capitalize() for d in districts])
-                    logger.info(f"🔍 Filtered to {filtered_count} listing(s) in {districts_str} (from {total_cards} total)")
-            
-            logger.info(f"📋 Found {len(listings)} listing(s) on page")
-            return listings
+            logger.info(f"📋 Found {len(all_listings)} total listing(s) from all districts")
+            return all_listings
             
         except requests.RequestException as e:
             logger.error(f"Error requesting OLX: {e}")
@@ -208,8 +224,66 @@ class OLXParser(BaseParser):
         return listing if listing.get('id') else None
 
 
+def build_search_urls() -> List[str]:
+    """Build search URLs for all districts"""
+    
+    # Get all districts
+    district_name = os.getenv('DISTRICT_NAME', 'wola')
+    districts = [d.strip() for d in district_name.split(',') if d.strip()]
+    
+    urls = []
+    for district in districts:
+        base_url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-{district}/"
+        
+        params = []
+        
+        # NOTE: Floor filter is NOT supported by OLX API - it breaks the URL and causes random results
+        # Keeping the env var for documentation but not using it in the URL
+        # floors = os.getenv('FLOORS', '1,2,3,4,5,6,7,8,9')
+        
+        # Furnished
+        furniture = os.getenv('FURNITURE', 'yes')
+        if furniture:
+            params.append(f"search[filter_enum_furniture][0]={furniture}")
+        
+        # Pets allowed
+        pets = os.getenv('PETS', 'Tak')
+        if pets:
+            params.append(f"search[filter_enum_pets][0]={pets}")
+        
+        # Number of rooms (one, two, three, four)
+        rooms = os.getenv('ROOMS', 'three')
+        if rooms:
+            params.append(f"search[filter_enum_rooms][0]={rooms}")
+        
+        # Price from
+        price_from = os.getenv('PRICE_FROM', '4000')
+        if price_from:
+            params.append(f"search[filter_float_price:from]={price_from}")
+        
+        # Price to
+        price_to = os.getenv('PRICE_TO', '6000')
+        if price_to:
+            params.append(f"search[filter_float_price:to]={price_to}")
+        
+        # Listing type (private or business)
+        listing_type = os.getenv('LISTING_TYPE', 'private')
+        if listing_type:
+            params.append(f"search[private_business]={listing_type}")
+        
+        # Build URL
+        if params:
+            search_url = base_url + '?' + '&'.join(params)
+        else:
+            search_url = base_url
+        
+        urls.append(search_url)
+    
+    return urls
+
+
 def build_search_url() -> str:
-    """Build search URL from configuration parameters"""
+    """Build search URL from configuration parameters (legacy function for compatibility)"""
     
     # District - use only the first district in URL path for proper filtering
     # Multiple districts are handled by client-side filtering

@@ -36,8 +36,8 @@ class BaseParser(ABC):
             'Cache-Control': 'max-age=0'
         }
         
-        # Minimum interval between requests (60 seconds = 1 minute)
-        self.request_interval = 60
+        # Minimum interval between requests (90 seconds = 1.5 minutes)
+        self.request_interval = 90
         self.last_request_time = 0
     
     @abstractmethod
