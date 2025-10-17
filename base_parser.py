@@ -180,6 +180,12 @@ class BaseParser(ABC):
     def send_to_slack(self, listing: Dict):
         """Send listing to Slack"""
         try:
+            # Double-check that we haven't sent this listing before
+            listing_id = listing.get('id')
+            if listing_id and self._is_listing_seen(listing_id):
+                logger.warning(f"⚠️  Listing {listing_id} already sent to Slack, skipping...")
+                return
+            
             source = listing.get('source', self.get_source_name())
             
             # Extract date from location for display
@@ -202,13 +208,18 @@ class BaseParser(ABC):
             ]
             
             # Add listing details FIRST
+            price_text = listing.get('price', 'Not specified')
+            czynsz = listing.get('czynsz')
+            if czynsz:
+                price_text += f"\n*Czynsz:* {czynsz}"
+            
             blocks.extend([
                 {
                     "type": "section",
                     "fields": [
                         {
                             "type": "mrkdwn",
-                            "text": f"*Price:*\n{listing.get('price', 'Not specified')}"
+                            "text": f"*Price:*\n{price_text}"
                         },
                         {
                             "type": "mrkdwn",
@@ -349,8 +360,15 @@ class BaseParser(ABC):
         if new_listings:
             logger.info(f"📤 Sending {len(new_listings)} new listings in reverse order (newest at top)...")
             for listing in reversed(new_listings):
-                self.send_to_slack(listing)
-                self._save_listing(listing)
+                try:
+                    self.send_to_slack(listing)
+                    # Only save to database AFTER successful Slack send
+                    self._save_listing(listing)
+                    logger.debug(f"✅ Successfully sent and saved: {listing.get('id')}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to send listing {listing.get('id')}: {e}")
+                    # Don't save to database if Slack send failed
+                    continue
                 # Small delay between sends
                 time.sleep(1)
         

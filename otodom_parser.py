@@ -308,25 +308,45 @@ class OtodomParser(BaseParser):
                 logger.debug(f"⏭️  Skipping non-private listing: {listing.get('title', 'Unknown')}")
                 return None
             
-            # Extract price - prioritize monthly rent price (with /miesiąc or /mies)
-            price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł\s*/\s*mies', parent_text)
-            if price_match:
-                price_str = price_match.group(1).replace(' ', '')
+            # Extract price - look for main rental price first
+            # Pattern: "4500 zł/miesiąc" or "4500 zł/mies" 
+            main_price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł\s*/\s*mies', parent_text)
+            if main_price_match:
+                price_str = main_price_match.group(1).replace(' ', '')
                 listing['price'] = f"{price_str} zł/miesiąc"
             else:
-                # Fallback: try to find "czynsz" (rent) price
-                price_match = re.search(r'czynsz[:\s]*(\d[\d\s]*\d+|\d+)\s*zł', parent_text, re.IGNORECASE)
-                if price_match:
-                    price_str = price_match.group(1).replace(' ', '')
-                    listing['price'] = f"{price_str} zł/miesiąc"
-                else:
-                    # Last fallback: first price found
-                    price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł', parent_text)
+                # Fallback: try to find any price without /mies, but exclude czynsz
+                # First check if there's a czynsz price
+                czynsz_match = re.search(r'czynsz[:\s]*(\d[\d\s]*\d+|\d+)\s*zł', parent_text, re.IGNORECASE)
+                if czynsz_match:
+                    # If there's czynsz, look for price that's NOT the czynsz
+                    czynsz_start = czynsz_match.start()
+                    czynsz_end = czynsz_match.end()
+                    
+                    # Look for price before czynsz
+                    before_czynsz = parent_text[:czynsz_start]
+                    price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł(?!\s*/\s*mies)', before_czynsz)
                     if price_match:
                         price_str = price_match.group(1).replace(' ', '')
                         listing['price'] = f"{price_str} zł"
                     else:
                         listing['price'] = 'N/A'
+                else:
+                    # No czynsz found, look for any price
+                    price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł(?!\s*/\s*mies)', parent_text)
+                    if price_match:
+                        price_str = price_match.group(1).replace(' ', '')
+                        listing['price'] = f"{price_str} zł"
+                    else:
+                        listing['price'] = 'N/A'
+            
+            # Extract czynsz (service charge) separately
+            czynsz_match = re.search(r'czynsz[:\s]*(\d[\d\s]*\d+|\d+)\s*zł', parent_text, re.IGNORECASE)
+            if czynsz_match:
+                czynsz_str = czynsz_match.group(1).replace(' ', '')
+                listing['czynsz'] = f"{czynsz_str} zł/miesiąc"
+            else:
+                listing['czynsz'] = None
             
             # Extract location - look for district name in text
             # Otodom format: "..., District, Warszawa, mazowieckie"
