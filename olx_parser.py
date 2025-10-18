@@ -194,6 +194,39 @@ class OLXParser(BaseParser):
                     if urls:
                         listing['image_url'] = urls[0]
         
+        # Additional filtering: exclude business/agency listings
+        card_text = card.get_text(separator=' ', strip=True).lower()
+        
+        # Check for business/agency indicators
+        is_business = ('biuro' in card_text or 
+                      'agencja' in card_text or
+                      'deweloper' in card_text or
+                      'sp. z o.o.' in card_text or
+                      'spółka' in card_text or
+                      'firma' in card_text or
+                      'pro' in card_text or
+                      'profesjonalne' in card_text or
+                      'biuro nieruchomości' in card_text)
+        
+        # Check for property-specific keywords based on search type
+        property_type = os.getenv('PROPERTY_TYPE', 'apartments')
+        
+        if property_type == 'houses':
+            is_relevant_property = ('dom' in card_text or 
+                                  'house' in card_text or
+                                  'wynajem' in card_text or
+                                  'domy' in card_text)
+        else:
+            is_relevant_property = ('mieszkanie' in card_text or 
+                                  'apartment' in card_text or
+                                  'wynajem' in card_text or
+                                  'pokój' in card_text)
+        
+        # Skip if it's business or not relevant property type
+        if is_business or not is_relevant_property:
+            logger.debug(f"⏭️  Skipping non-{property_type}/business listing: {listing.get('title', 'Unknown')} (business: {is_business}, relevant: {is_relevant_property})")
+            return None
+        
         # Debug logging if title is missing
         if not listing.get('title'):
             logger.warning(f"⚠️  Could not find title for listing ID: {listing.get('id', 'unknown')}")
@@ -207,7 +240,14 @@ def build_search_url() -> str:
     
     # District - use district name in URL path for proper filtering
     district_name = os.getenv('DISTRICT_NAME', 'wola')  # Default: Wola
-    base_url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-{district_name}/"
+    
+    # Property type - apartments or houses
+    property_type = os.getenv('PROPERTY_TYPE', 'apartments')  # apartments or houses
+    
+    if property_type == 'houses':
+        base_url = f"https://www.olx.pl/nieruchomosci/domy/wynajem/warszawa/q-{district_name}/"
+    else:
+        base_url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-{district_name}/"
     
     params = []
     
@@ -254,6 +294,7 @@ def build_search_url() -> str:
     # Log search criteria
     logger.info("=" * 80)
     logger.info("🔍 OLX SEARCH CRITERIA:")
+    logger.info(f"   Property type: {property_type.capitalize()}")
     logger.info(f"   District:     {district_name.capitalize()}")
     logger.info(f"   Rooms:        {os.getenv('ROOMS', 'three')}")
     logger.info(f"   Price:        {os.getenv('PRICE_FROM', '4000')} - {os.getenv('PRICE_TO', '6000')} PLN")

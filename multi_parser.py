@@ -26,7 +26,14 @@ def build_otodom_url() -> str:
     """Build Otodom search URL from configuration parameters"""
     # Otodom uses different URL structure
     # NOTE: District in URL path causes 404 errors, so we search all Warsaw and filter client-side
-    base_url = "https://www.otodom.pl/pl/wyniki/wynajem/mieszkanie/mazowieckie/warszawa"
+    
+    # Property type - apartments or houses
+    property_type = os.getenv('PROPERTY_TYPE', 'apartments')  # apartments or houses
+    
+    if property_type == 'houses':
+        base_url = "https://www.otodom.pl/pl/wyniki/wynajem/dom/mazowieckie/warszawa"
+    else:
+        base_url = "https://www.otodom.pl/pl/wyniki/wynajem/mieszkanie/mazowieckie/warszawa"
     
     params = []
     
@@ -77,6 +84,7 @@ def build_otodom_url() -> str:
     # Log search criteria
     logger.info("=" * 80)
     logger.info("🔍 OTODOM SEARCH CRITERIA:")
+    logger.info(f"   Property type: {property_type.capitalize()}")
     # Handle multiple districts
     if ',' in district_str:
         districts_list = [d.strip().capitalize() for d in district_str.split(',')]

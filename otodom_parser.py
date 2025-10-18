@@ -300,12 +300,53 @@ class OtodomParser(BaseParser):
         if parent:
             parent_text = parent.get_text(separator=' ', strip=True)
             
-            # Check if private listing
-            is_private = 'prywatne' in parent_text.lower() or 'oferta prywatna' in parent_text.lower()
+            # Check if private listing - improved logic
+            parent_text_lower = parent_text.lower()
+            
+            # Check for private indicators
+            is_private = ('prywatne' in parent_text_lower or 
+                         'oferta prywatna' in parent_text_lower or
+                         'osoba prywatna' in parent_text_lower)
+            
+            # Check for business/agency indicators (these should be excluded)
+            is_business = ('biuro' in parent_text_lower or 
+                          'agencja' in parent_text_lower or
+                          'deweloper' in parent_text_lower or
+                          'sp. z o.o.' in parent_text_lower or
+                          'spółka' in parent_text_lower or
+                          'firma' in parent_text_lower or
+                          'pro' in parent_text_lower or
+                          'profesjonalne' in parent_text_lower)
+            
+            # Final decision: private if has private indicators AND no business indicators
+            is_private_final = is_private and not is_business
+            
+            # Additional check: if no explicit private indicators, assume business
+            if not is_private and not is_business:
+                is_private_final = False  # Default to business if unclear
             
             # Filter if needed
-            if filter_private and not is_private:
-                logger.debug(f"⏭️  Skipping non-private listing: {listing.get('title', 'Unknown')}")
+            if filter_private and not is_private_final:
+                logger.debug(f"⏭️  Skipping non-private listing: {listing.get('title', 'Unknown')} (business indicators: {is_business})")
+                return None
+            
+            # Check for property-specific keywords based on search type
+            property_type = os.getenv('PROPERTY_TYPE', 'apartments')
+            
+            if property_type == 'houses':
+                is_relevant_property = ('dom' in parent_text_lower or 
+                                      'house' in parent_text_lower or
+                                      'wynajem' in parent_text_lower or
+                                      'domy' in parent_text_lower)
+            else:
+                is_relevant_property = ('mieszkanie' in parent_text_lower or 
+                                       'apartment' in parent_text_lower or
+                                       'wynajem' in parent_text_lower or
+                                       'pokój' in parent_text_lower)
+            
+            # Skip if not relevant property type
+            if not is_relevant_property:
+                logger.debug(f"⏭️  Skipping non-{property_type} listing: {listing.get('title', 'Unknown')} (relevant: {is_relevant_property})")
                 return None
             
             # Extract price - look for main rental price first
