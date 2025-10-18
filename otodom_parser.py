@@ -217,6 +217,11 @@ class OtodomParser(BaseParser):
                 except Exception as e:
                     logger.debug(f"Could not extract districts/prices from JSON: {e}")
             
+            # Log which districts we're analyzing
+            district_name = os.getenv('OTODOM_DISTRICT', 'wola')
+            expected_districts = [d.strip() for d in district_name.split(',') if d.strip()]
+            logger.info(f"🔍 Analyzing districts: {', '.join(expected_districts)}")
+            
             listings = []
             for i, link in enumerate(listing_links[:5], 1):  # Тільки перші 5 для дебагу
                 try:
@@ -294,6 +299,27 @@ class OtodomParser(BaseParser):
                 except Exception as e:
                     logger.error(f"❌ Error parsing link {i}: {e}")
                     continue
+            
+            # Log district analysis summary
+            district_summary = {}
+            for listing in listings:
+                location = listing.get('location', '')
+                if 'Wola' in location:
+                    district_summary['Wola'] = district_summary.get('Wola', 0) + 1
+                elif 'Ursynów' in location:
+                    district_summary['Ursynów'] = district_summary.get('Ursynów', 0) + 1
+                elif 'Kabaty' in location:
+                    district_summary['Kabaty'] = district_summary.get('Kabaty', 0) + 1
+                elif 'Natolin' in location:
+                    district_summary['Natolin'] = district_summary.get('Natolin', 0) + 1
+                elif 'Imielin' in location:
+                    district_summary['Imielin'] = district_summary.get('Imielin', 0) + 1
+                elif 'Stokłosy' in location:
+                    district_summary['Stokłosy'] = district_summary.get('Stokłosy', 0) + 1
+            
+            if district_summary:
+                summary_str = ', '.join([f"{district}: {count}" for district, count in district_summary.items()])
+                logger.info(f"📊 District analysis: {summary_str}")
             
             if filter_private and len(listings) < len(listing_links):
                 logger.info(f"🔍 Filtered to {len(listings)} private listing(s) (from {len(listing_links)} total)")
