@@ -178,10 +178,11 @@ class OtodomParser(BaseParser):
             
             # Check if we need to filter for private listings
             listing_type = os.getenv('LISTING_TYPE', 'private')
-            filter_private = listing_type == 'private'
+            filter_private = False  # ВИМКНЕНО - фільтр працює неправильно
             
-            # Build district map from JSON for accurate filtering
+            # Build district and price maps from JSON for accurate filtering
             districts_map = {}
+            prices_map = {}
             if script_tags:
                 try:
                     json_data = json.loads(script_tags[0].string)
@@ -191,7 +192,7 @@ class OtodomParser(BaseParser):
                         items = search_ads.get('items', [])
                         
                         for item in items:
-                            # Extract district from JSON (more accurate than text parsing)
+                            # Extract district and price from JSON (more accurate than text parsing)
                             listing_id = f"ID{item.get('slug', '').split('-ID')[-1]}" if 'ID' in item.get('slug', '') else None
                             if listing_id:
                                 location = item.get('location', {})
@@ -202,16 +203,48 @@ class OtodomParser(BaseParser):
                                 district = next((loc['name'] for loc in locations if loc.get('locationLevel') == 'district'), None)
                                 if district:
                                     districts_map[listing_id] = district
+                                
+                                # Extract price from JSON
+                                price_info = item.get('price', {})
+                                if price_info:
+                                    price_value = price_info.get('value', '')
+                                    if price_value:
+                                        prices_map[listing_id] = price_value
+                                        logger.debug(f"💰 Price from JSON for {listing_id}: {price_value}")
                         
                         logger.debug(f"Extracted districts for {len(districts_map)} listings from JSON")
+                        logger.debug(f"Extracted prices for {len(prices_map)} listings from JSON")
                 except Exception as e:
-                    logger.debug(f"Could not extract districts from JSON: {e}")
+                    logger.debug(f"Could not extract districts/prices from JSON: {e}")
             
             listings = []
-            for link in listing_links:
+            for i, link in enumerate(listing_links[:5], 1):  # Тільки перші 5 для дебагу
                 try:
-                    listing = self._parse_listing_link(link, filter_private)
+                    logger.info(f"🔍 Parsing link {i}/5...")
+                    
+                    # Get listing ID from link to fetch price from JSON
+                    href = link.get('href', '')
+                    listing_id = f"ID{href.split('-ID')[-1]}" if '-ID' in href else None
+                    json_price = prices_map.get(listing_id) if listing_id else None
+                    
+                    # Try to get price from search results HTML (parent element)
+                    search_price = None
+                    try:
+                        parent = link.find_parent('article') or link.find_parent('div', class_=lambda x: x and 'listing' in str(x).lower())
+                        if parent:
+                            parent_text = parent.get_text(separator=' ', strip=True)
+                            # Look for pattern like "4500 zł + czynsz: 1100 zł/miesiąc"
+                            price_match = re.search(r'(\d{3,5})\s*zł\s*\+\s*czynsz', parent_text)
+                            if price_match:
+                                search_price = price_match.group(1)
+                                logger.debug(f"💰 Price from search HTML: {search_price} zł")
+                    except Exception as e:
+                        logger.debug(f"Could not extract price from search HTML: {e}")
+                    
+                    listing = self._parse_listing_link(link, filter_private, json_price, search_price)
                     if listing:
+                        logger.info(f"✅ Parsed listing {i}: {listing.get('title', 'No title')[:50]}...")
+                        
                         # Add date from JSON if available
                         # Use _short_id (ID...) to match with dates_map keys
                         short_id = listing.get('_short_id')
@@ -225,28 +258,41 @@ class OtodomParser(BaseParser):
                         # Filter by district using JSON data (more accurate)
                         if short_id and short_id in districts_map:
                             district_from_json = districts_map[short_id]
+                            logger.info(f"📍 District from JSON: {district_from_json}")
                             
-                            # First check if it's Warsaw (basic city filter)
-                            if 'warszawa' not in district_from_json.lower() and 'warsaw' not in district_from_json.lower():
-                                logger.debug(f"⏭️  Skipping listing from '{district_from_json}' (not Warsaw)")
+                            # Skip non-Warsaw districts (but Ursynów, Wola, etc. are Warsaw districts)
+                            # Only skip if it's clearly not Warsaw (like Kraków, Gdańsk, etc.)
+                            non_warsaw_cities = ['kraków', 'krakow', 'gdańsk', 'gdansk', 'wrocław', 'wroclaw', 'poznań', 'poznan']
+                            if any(city in district_from_json.lower() for city in non_warsaw_cities):
+                                logger.info(f"⏭️  Skipping listing from '{district_from_json}' (not Warsaw city)")
                                 continue
                             
                             districts_str = os.getenv('OTODOM_DISTRICT', '')
                             if districts_str:
                                 expected_districts = [d.strip() for d in districts_str.split(',') if d.strip()]
-                                match_found = any(district.lower() in district_from_json.lower() for district in expected_districts)
+                                logger.info(f"🎯 Looking for districts: {expected_districts}")
+                                # Normalize Polish characters for comparison
+                                district_normalized = district_from_json.lower()
+                                district_normalized = district_normalized.replace('ą', 'a').replace('ć', 'c').replace('ę', 'e').replace('ł', 'l').replace('ń', 'n').replace('ó', 'o').replace('ś', 's').replace('ź', 'z').replace('ż', 'z')
+                                
+                                match_found = any(district.lower() in district_normalized for district in expected_districts)
                                 if not match_found:
                                     districts_display = ', '.join(expected_districts)
-                                    logger.debug(f"⏭️  Skipping listing from '{district_from_json}' (looking for: {districts_display})")
+                                    logger.info(f"⏭️  Skipping listing from '{district_from_json}' (looking for: {districts_display})")
                                     continue
+                                else:
+                                    logger.info(f"✅ District match found: {district_from_json}")
                         
                         # Remove temporary _short_id before saving
                         if '_short_id' in listing:
                             del listing['_short_id']
                         
                         listings.append(listing)
+                        logger.info(f"✅ Added listing to results: {listing.get('title', 'No title')[:50]}...")
+                    else:
+                        logger.info(f"❌ Failed to parse listing {i}")
                 except Exception as e:
-                    logger.error(f"❌ Error parsing link: {e}")
+                    logger.error(f"❌ Error parsing link {i}: {e}")
                     continue
             
             if filter_private and len(listings) < len(listing_links):
@@ -263,7 +309,7 @@ class OtodomParser(BaseParser):
             logger.error(f"Unexpected error: {e}")
             return []
     
-    def _parse_listing_link(self, link, filter_private: bool = False) -> Optional[Dict]:
+    def _parse_listing_link(self, link, filter_private: bool = False, json_price: str = None, search_price: str = None) -> Optional[Dict]:
         """Parse individual listing link from Otodom"""
         listing = {}
         
@@ -334,37 +380,56 @@ class OtodomParser(BaseParser):
                 logger.debug(f"⏭️  Skipping non-private listing: {listing.get('title', 'Unknown')}")
                 return None
             
-            # Extract price - look for main rental price first
-            # Pattern: "4500 zł/miesiąc" or "4500 zł/mies" 
-            main_price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł\s*/\s*mies', parent_text)
-            if main_price_match:
-                price_str = main_price_match.group(1).replace(' ', '')
-                listing['price'] = f"{price_str} zł/miesiąc"
+            # Extract price - prioritize search price, then JSON price, then HTML
+            if search_price:
+                listing['price'] = f"{search_price} zł/miesiąc"
+                logger.debug(f"💰 Price from search HTML: {search_price} zł")
+            elif json_price:
+                listing['price'] = f"{json_price} zł/miesiąc"
+                logger.debug(f"💰 Price from JSON: {json_price} zł")
             else:
-                # Fallback: try to find any price without /mies, but exclude czynsz
-                # First check if there's a czynsz price
-                czynsz_match = re.search(r'czynsz[:\s]*(\d[\d\s]*\d+|\d+)\s*zł', parent_text, re.IGNORECASE)
-                if czynsz_match:
-                    # If there's czynsz, look for price that's NOT the czynsz
-                    czynsz_start = czynsz_match.start()
-                    czynsz_end = czynsz_match.end()
-                    
-                    # Look for price before czynsz
-                    before_czynsz = parent_text[:czynsz_start]
-                    price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł(?!\s*/\s*mies)', before_czynsz)
-                    if price_match:
-                        price_str = price_match.group(1).replace(' ', '')
-                        listing['price'] = f"{price_str} zł"
-                    else:
-                        listing['price'] = 'N/A'
+                # Extract price from HTML - look for main rental price first
+                # Pattern: "4500 zł/miesiąc" or "4500 zł/mies" 
+                main_price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł\s*/\s*mies', parent_text)
+                if main_price_match:
+                    price_str = main_price_match.group(1).replace(' ', '')
+                    listing['price'] = f"{price_str} zł/miesiąc"
+                    logger.debug(f"💰 Price from /mies pattern: {price_str} zł")
                 else:
-                    # No czynsz found, look for any price
-                    price_match = re.search(r'(\d[\d\s]*\d+|\d+)\s*zł(?!\s*/\s*mies)', parent_text)
-                    if price_match:
-                        price_str = price_match.group(1).replace(' ', '')
-                        listing['price'] = f"{price_str} zł"
+                    # Look for pattern like "4500 zł + czynsz: 1100 zł/miesiąc"
+                    main_price_pattern = re.search(r'(\d{3,5})\s*zł\s*\+\s*czynsz', parent_text)
+                    if main_price_pattern:
+                        price_str = main_price_pattern.group(1)
+                        listing['price'] = f"{price_str} zł/miesiąc"
+                        logger.debug(f"💰 Price from +czynsz pattern: {price_str} zł")
                     else:
-                        listing['price'] = 'N/A'
+                        # Fallback: look for any price but EXCLUDE czynsz
+                        # Use better regex that doesn't capture page numbers
+                        all_prices = re.findall(r'\b(\d{3,5})\s*zł\b', parent_text)
+                        logger.debug(f"💰 All prices found: {all_prices}")
+                        
+                        if all_prices:
+                            # Find czynsz pattern to exclude it
+                            czynsz_match = re.search(r'czynsz[:\s]*(\d{3,5})\s*zł', parent_text, re.IGNORECASE)
+                            if czynsz_match:
+                                czynsz_value = czynsz_match.group(1)
+                                logger.debug(f"💰 Czynsz value: {czynsz_value}")
+                                # Find the first price that's NOT czynsz
+                                for price_str in all_prices:
+                                    if price_str != czynsz_value:
+                                        listing['price'] = f"{price_str} zł/miesiąc"
+                                        logger.debug(f"💰 Selected price (not czynsz): {price_str} zł")
+                                        break
+                                else:
+                                    listing['price'] = 'N/A'
+                                    logger.debug(f"💰 No non-czynsz price found")
+                            else:
+                                # No czynsz found, take the first price
+                                listing['price'] = f"{all_prices[0]} zł/miesiąc"
+                                logger.debug(f"💰 First price (no czynsz): {all_prices[0]} zł")
+                        else:
+                            listing['price'] = 'N/A'
+                            logger.debug(f"💰 No prices found in text")
             
             # Extract czynsz (service charge) separately
             czynsz_match = re.search(r'czynsz[:\s]*(\d[\d\s]*\d+|\d+)\s*zł', parent_text, re.IGNORECASE)
