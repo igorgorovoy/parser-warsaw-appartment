@@ -225,9 +225,11 @@ class OtodomParser(BaseParser):
             logger.info(f"🔍 Analyzing districts: {', '.join(expected_districts)}")
             
             listings = []
-            for i, link in enumerate(listing_links[:5], 1):  # Тільки перші 5 для дебагу
+            # Process all listings (removed debug limit)
+            total_links = len(listing_links)
+            for i, link in enumerate(listing_links, 1):
                 try:
-                    logger.info(f"🔍 Parsing link {i}/5...")
+                    logger.info(f"🔍 Parsing link {i}/{total_links}...")
                     
                     # Get listing ID from link to fetch price from JSON
                     href = link.get('href', '')
