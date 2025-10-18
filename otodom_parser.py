@@ -298,8 +298,7 @@ class OtodomParser(BaseParser):
                         
                         listings.append(listing)
                         logger.info(f"✅ Added listing to results: {listing.get('title', 'No title')[:50]}...")
-                    else:
-                        logger.info(f"❌ Failed to parse listing {i}")
+                    # Note: if listing is None, the reason was already logged in _parse_listing_link
                 except Exception as e:
                     logger.error(f"❌ Error parsing link {i}: {e}")
                     continue
@@ -400,10 +399,10 @@ class OtodomParser(BaseParser):
                         # Filter out business/agency listings
                         if advertiser_type in ['business', 'agency', 'developer', 'professional'] or \
                            advert_type in ['agency', 'developer', 'professional', 'business']:
-                            logger.debug(f"⏭️  Skipping {advertiser_type}/{advert_type} listing: {listing.get('title', 'Unknown')}")
+                            logger.info(f"⏭️  Skipped: AGENCY ({advertiser_type}/{advert_type}) - {listing.get('title', 'Unknown')[:50]}")
                             return None
                         
-                        logger.debug(f"✅ Private listing confirmed: {advertiser_type}/{advert_type}")
+                        logger.info(f"✅ Private listing confirmed: {advertiser_type}/{advert_type}")
                 
             except Exception as e:
                 logger.warning(f"⚠️  Could not check advertiser type for {url}: {e}")
