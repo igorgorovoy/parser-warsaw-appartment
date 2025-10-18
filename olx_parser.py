@@ -258,15 +258,36 @@ class OLXParser(BaseParser):
 
 
 def build_search_urls() -> List[str]:
-    """Build search URLs for all districts"""
+    """Build search URLs for all districts in specified city"""
     
-    # Get all districts
+    # Get city and districts
+    city_name = os.getenv('CITY_NAME', 'warszawa')
     district_name = os.getenv('DISTRICT_NAME', 'wola')
     districts = [d.strip() for d in district_name.split(',') if d.strip()]
     
+    # Get property type - check city-specific map first
+    city_property_map = os.getenv('CITY_PROPERTY_MAP', '')
+    property_type = os.getenv('PROPERTY_TYPE', 'apartments')  # Default
+    
+    # Parse city-specific property types
+    if city_property_map:
+        city_property_dict = {}
+        for mapping in city_property_map.split(','):
+            if ':' in mapping:
+                city, prop_type = mapping.strip().split(':', 1)
+                city_property_dict[city.strip()] = prop_type.strip()
+        
+        # Use city-specific property type if available
+        if city_name in city_property_dict:
+            property_type = city_property_dict[city_name]
+            logger.info(f"🏠 Using city-specific property type for {city_name}: {property_type}")
+    
     urls = []
     for district in districts:
-        base_url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-{district}/"
+        if property_type == 'houses':
+            base_url = f"https://www.olx.pl/nieruchomosci/domy/wynajem/{city_name}/q-{district}/"
+        else:
+            base_url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/{city_name}/q-{district}/"
         
         params = []
         
@@ -321,14 +342,28 @@ def build_search_url() -> str:
     # District - use only the first district in URL path for proper filtering
     # Multiple districts are handled by client-side filtering
     district_name = os.getenv('DISTRICT_NAME', 'wola')  # Default: Wola
+    city_name = os.getenv('CITY_NAME', 'warszawa')  # Default: Warsaw
     
-    # Property type - apartments or houses
-    property_type = os.getenv('PROPERTY_TYPE', 'apartments')  # apartments or houses
+    # Get property type - check city-specific map first
+    city_property_map = os.getenv('CITY_PROPERTY_MAP', '')
+    property_type = os.getenv('PROPERTY_TYPE', 'apartments')  # Default
+    
+    # Parse city-specific property types
+    if city_property_map:
+        city_property_dict = {}
+        for mapping in city_property_map.split(','):
+            if ':' in mapping:
+                city, prop_type = mapping.strip().split(':', 1)
+                city_property_dict[city.strip()] = prop_type.strip()
+        
+        # Use city-specific property type if available
+        if city_name in city_property_dict:
+            property_type = city_property_dict[city_name]
     
     if property_type == 'houses':
-        base_url = f"https://www.olx.pl/nieruchomosci/domy/wynajem/warszawa/q-{district_name}/"
+        base_url = f"https://www.olx.pl/nieruchomosci/domy/wynajem/{city_name}/q-{district_name}/"
     else:
-        base_url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-{district_name}/"
+        base_url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/{city_name}/q-{district_name}/"
     
     params = []
     
@@ -375,6 +410,7 @@ def build_search_url() -> str:
     # Log search criteria
     logger.info("=" * 80)
     logger.info("🔍 OLX SEARCH CRITERIA:")
+    logger.info(f"   City:         {city_name.capitalize()}")
     logger.info(f"   Property type: {property_type.capitalize()}")
     logger.info(f"   District:     {district_name.capitalize()}")
     logger.info(f"   Rooms:        {os.getenv('ROOMS', 'three')}")

@@ -25,15 +25,56 @@ logger = logging.getLogger(__name__)
 def build_otodom_url() -> str:
     """Build Otodom search URL from configuration parameters"""
     # Otodom uses different URL structure
-    # NOTE: District in URL path causes 404 errors, so we search all Warsaw and filter client-side
+    # NOTE: District in URL path causes 404 errors, so we search all city and filter client-side
     
-    # Property type - apartments or houses
-    property_type = os.getenv('PROPERTY_TYPE', 'apartments')  # apartments or houses
+    # Get city and property type
+    city_name = os.getenv('CITY_NAME', 'warszawa')
+    
+    # Get property type - check city-specific map first
+    city_property_map = os.getenv('CITY_PROPERTY_MAP', '')
+    property_type = os.getenv('PROPERTY_TYPE', 'apartments')  # Default
+    
+    # Parse city-specific property types
+    if city_property_map:
+        city_property_dict = {}
+        for mapping in city_property_map.split(','):
+            if ':' in mapping:
+                city, prop_type = mapping.strip().split(':', 1)
+                city_property_dict[city.strip()] = prop_type.strip()
+        
+        # Use city-specific property type if available
+        if city_name in city_property_dict:
+            property_type = city_property_dict[city_name]
+            logger.info(f"🏠 Using city-specific property type for {city_name}: {property_type}")
+    
+    # Map city names to voivodeships (województwa)
+    city_to_voivodeship = {
+        'warszawa': 'mazowieckie',
+        'krakow': 'malopolskie', 
+        'gdansk': 'pomorskie',
+        'wroclaw': 'dolnoslaskie',
+        'poznan': 'wielkopolskie',
+        'lodz': 'lodzkie',
+        'szczecin': 'zachodniopomorskie',
+        'lublin': 'lubelskie',
+        'katowice': 'slaskie',
+        'bialystok': 'podlaskie',
+        'rzeszow': 'podkarpackie',
+        'opole': 'opolskie',
+        'zielona-gora': 'lubuskie',
+        'gorzow-wielkopolski': 'lubuskie',
+        'kielce': 'swietokrzyskie',
+        'torun': 'kujawsko-pomorskie',
+        'bydgoszcz': 'kujawsko-pomorskie',
+        'olsztyn': 'warminsko-mazurskie'
+    }
+    
+    voivodeship = city_to_voivodeship.get(city_name.lower(), 'mazowieckie')
     
     if property_type == 'houses':
-        base_url = "https://www.otodom.pl/pl/wyniki/wynajem/dom/mazowieckie/warszawa"
+        base_url = f"https://www.otodom.pl/pl/wyniki/wynajem/dom/{voivodeship}/{city_name}"
     else:
-        base_url = "https://www.otodom.pl/pl/wyniki/wynajem/mieszkanie/mazowieckie/warszawa"
+        base_url = f"https://www.otodom.pl/pl/wyniki/wynajem/mieszkanie/{voivodeship}/{city_name}"
     
     params = []
     
@@ -84,6 +125,8 @@ def build_otodom_url() -> str:
     # Log search criteria
     logger.info("=" * 80)
     logger.info("🔍 OTODOM SEARCH CRITERIA:")
+    logger.info(f"   City:         {city_name.capitalize()}")
+    logger.info(f"   Voivodeship:  {voivodeship.capitalize()}")
     logger.info(f"   Property type: {property_type.capitalize()}")
     # Handle multiple districts
     if ',' in district_str:
