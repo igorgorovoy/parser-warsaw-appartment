@@ -36,8 +36,11 @@ class BaseParser(ABC):
             'Cache-Control': 'max-age=0'
         }
         
-        # Minimum interval between requests (90 seconds = 1.5 minutes)
-        self.request_interval = 90
+        # Minimum interval between requests
+        # - Search pages: 90 seconds (1.5 minutes) - high visibility
+        # - Listing pages: 5 seconds - normal browsing speed
+        self.search_request_interval = 90
+        self.listing_request_interval = 5
         self.last_request_time = 0
     
     @abstractmethod
@@ -413,14 +416,23 @@ class BaseParser(ABC):
             logger.error(f"❌ Error getting statistics: {e}")
             return {'total': 0, 'sent': 0}
     
-    def _wait_before_request(self):
-        """Wait before making request if needed (rate limiting)"""
+    def _wait_before_request(self, is_listing_page: bool = False):
+        """Wait before making request if needed (rate limiting)
+        
+        Args:
+            is_listing_page: If True, uses shorter interval (normal browsing).
+                           If False, uses longer interval (search pages are more monitored).
+        """
         current_time = time.time()
         time_since_last_request = current_time - self.last_request_time
         
-        if time_since_last_request < self.request_interval:
-            wait_time = self.request_interval - time_since_last_request
-            logger.info(f"⏳ Waiting {wait_time:.1f} seconds before next request to reduce load...")
+        # Choose interval based on request type
+        interval = self.listing_request_interval if is_listing_page else self.search_request_interval
+        
+        if time_since_last_request < interval:
+            wait_time = interval - time_since_last_request
+            request_type = "listing page" if is_listing_page else "search page"
+            logger.debug(f"⏳ Waiting {wait_time:.1f}s before {request_type} request...")
             time.sleep(wait_time)
         
         self.last_request_time = time.time()

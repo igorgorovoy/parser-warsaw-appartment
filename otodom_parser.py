@@ -178,7 +178,9 @@ class OtodomParser(BaseParser):
             
             # Check if we need to filter for private listings
             listing_type = os.getenv('LISTING_TYPE', 'private')
-            filter_private = False  # ВИМКНЕНО - фільтр працює неправильно
+            filter_private = (listing_type == 'private')
+            if filter_private:
+                logger.info("🔒 Private listing filter ENABLED - will check each listing")
             
             # Build district and price maps from JSON for accurate filtering
             districts_map = {}
@@ -377,7 +379,7 @@ class OtodomParser(BaseParser):
         # The search results page doesn't contain reliable advertiser type info
         if filter_private:
             try:
-                self._wait_before_request()
+                self._wait_before_request(is_listing_page=True)
                 response = self.session.get(url, headers=self.headers, timeout=30)
                 response.raise_for_status()
                 soup = BeautifulSoup(response.content, 'html.parser')
