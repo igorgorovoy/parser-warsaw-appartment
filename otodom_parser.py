@@ -373,41 +373,45 @@ class OtodomParser(BaseParser):
             else:
                 listing['title'] = 'Otodom Listing'
         
-        # Get parent element to find price, location, image, and private/business indicator
+        # CRITICAL: Check if private listing by fetching the actual listing page
+        # The search results page doesn't contain reliable advertiser type info
+        if filter_private:
+            try:
+                self._wait_before_request()
+                response = self.session.get(url, headers=self.headers, timeout=30)
+                response.raise_for_status()
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # Extract advertiser type from JSON data
+                script_tags = soup.find_all('script', {'id': '__NEXT_DATA__'})
+                if script_tags:
+                    import json
+                    json_data = json.loads(script_tags[0].string)
+                    
+                    if 'props' in json_data and 'pageProps' in json_data['props']:
+                        ad = json_data['props']['pageProps'].get('ad', {})
+                        advertiser_type = ad.get('advertiserType', '').lower()
+                        advert_type = ad.get('advertType', '').lower()
+                        
+                        # Filter out business/agency listings
+                        if advertiser_type in ['business', 'agency', 'developer', 'professional'] or \
+                           advert_type in ['agency', 'developer', 'professional', 'business']:
+                            logger.debug(f"⏭️  Skipping {advertiser_type}/{advert_type} listing: {listing.get('title', 'Unknown')}")
+                            return None
+                        
+                        logger.debug(f"✅ Private listing confirmed: {advertiser_type}/{advert_type}")
+                
+            except Exception as e:
+                logger.warning(f"⚠️  Could not check advertiser type for {url}: {e}")
+                # If we can't check, skip it to be safe when filtering is enabled
+                return None
+        
+        # Get parent element to find price, location, image
         parent = link.find_parent('article') or link.find_parent('div', class_=lambda x: x and 'listing' in str(x).lower())
         
         if parent:
             parent_text = parent.get_text(separator=' ', strip=True)
-            
-            # Check if private listing - improved logic
             parent_text_lower = parent_text.lower()
-            
-            # Check for private indicators
-            is_private = ('prywatne' in parent_text_lower or 
-                         'oferta prywatna' in parent_text_lower or
-                         'osoba prywatna' in parent_text_lower)
-            
-            # Check for business/agency indicators (these should be excluded)
-            is_business = ('biuro' in parent_text_lower or 
-                          'agencja' in parent_text_lower or
-                          'deweloper' in parent_text_lower or
-                          'sp. z o.o.' in parent_text_lower or
-                          'spółka' in parent_text_lower or
-                          'firma' in parent_text_lower or
-                          'pro' in parent_text_lower or
-                          'profesjonalne' in parent_text_lower)
-            
-            # Final decision: private if has private indicators AND no business indicators
-            is_private_final = is_private and not is_business
-            
-            # Additional check: if no explicit private indicators, assume business
-            if not is_private and not is_business:
-                is_private_final = False  # Default to business if unclear
-            
-            # Filter if needed
-            if filter_private and not is_private_final:
-                logger.debug(f"⏭️  Skipping non-private listing: {listing.get('title', 'Unknown')} (business indicators: {is_business})")
-                return None
             
             # Check for property-specific keywords based on search type
             property_type = os.getenv('PROPERTY_TYPE', 'apartments')
