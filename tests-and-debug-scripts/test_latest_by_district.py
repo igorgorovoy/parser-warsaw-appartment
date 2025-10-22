@@ -29,7 +29,8 @@ TEST_DISTRICTS = [
     'ursynow',
     'ochota',
     'bemowo',
-    'bielany'
+    'bielany',
+    'mirow'
 ]
 
 

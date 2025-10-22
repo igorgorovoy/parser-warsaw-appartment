@@ -43,6 +43,7 @@ def test_all_districts():
         ("natolin", "Warszawa, Natolin - Dzisiaj o 16:09", "Natolin, Warszawa"),
         ("imielin", "Warszawa, Imielin - Dzisiaj o 16:09", "Imielin, Warszawa"),
         ("stoklosy", "Warszawa, Stoklosy - Dzisiaj o 16:09", "Stoklosy, Warszawa"),
+        ("mirow", "Warszawa, Mirow - Dzisiaj o 16:09", "Mirow, Warszawa"),
     ]
     
     for district_key, olx_location, otodom_location in test_cases:

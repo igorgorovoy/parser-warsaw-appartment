@@ -497,7 +497,7 @@ class OtodomParser(BaseParser):
             # Extract location - look for district name in text
             # Otodom format: "..., District, Warszawa, mazowieckie"
             # Try to find known districts in text
-            districts_to_check = ['wola', 'śródmieście', 'mokotów', 'praga', 'żoliborz', 'ochota', 'ursynów', 'bielany', 'targówek', 'bemowo', 'włochy', 'ursus', 'wilanów', 'wawer', 'wesoła', 'rembertów', 'białołęka']
+            districts_to_check = ['wola', 'śródmieście', 'mokotów', 'praga', 'żoliborz', 'ochota', 'ursynów', 'bielany', 'targówek', 'bemowo', 'włochy', 'ursus', 'wilanów', 'wawer', 'wesoła', 'rembertów', 'białołęka', 'mirow']
             location_found = None
             parent_text_lower = parent_text.lower()
             
