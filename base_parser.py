@@ -117,7 +117,29 @@ class BaseParser(ABC):
             conn.close()
         except Exception as e:
             logger.error(f"Error saving listing to database: {e}")
-    
+
+    def _save_filtered(self, listing: Dict):
+        """Remember a listing that was filtered out (sent_to_slack = 0) so it isn't re-checked"""
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR IGNORE INTO seen_listings (id, source, title, price, location, url, image_url, sent_to_slack)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+            ''', (
+                listing.get('id'),
+                listing.get('source', self.get_source_name()),
+                listing.get('title', ''),
+                listing.get('price', ''),
+                listing.get('location', ''),
+                listing.get('url', ''),
+                listing.get('image_url', '')
+            ))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error saving filtered listing to database: {e}")
+
     def _fetch_photo_from_detail_page(self, listing_url: str) -> Optional[str]:
         """Fetch first photo from listing detail page"""
         try:
@@ -202,7 +224,7 @@ class BaseParser(ABC):
                     "type": "header",
                     "text": {
                         "type": "plain_text",
-                        "text": f"🏠 New listing [{source}]{date_display}: {listing.get('title', 'No title')}"
+                        "text": f"🏠 New listing [{source}]{date_display}: {listing.get('title', 'No title')}"[:150]
                     }
                 }
             ]
@@ -226,15 +248,23 @@ class BaseParser(ABC):
                             "text": f"*Location:*\n{listing.get('location', 'Not specified')}"
                         }
                     ]
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"<{listing.get('url', '#')}|View listing>"
-                    }
                 }
             ])
+
+            extra = '\n'.join(filter(None, [listing.get('details'), listing.get('bus')]))
+            if extra:
+                blocks.append({
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": extra}
+                })
+
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"<{listing.get('url', '#')}|View listing>"
+                }
+            })
             
             # Add image AFTER details (Slack displays it better this way)
             image_url = listing.get('image_url')
@@ -271,11 +301,14 @@ class BaseParser(ABC):
                 json=message,
                 headers={'Content-Type': 'application/json'}
             )
-            response.raise_for_status()
+            if not response.ok:
+                # Raise so the caller doesn't mark the listing as sent
+                raise RuntimeError(f"Slack {response.status_code}: {response.text}")
             logger.info(f"✉️  Listing sent to Slack successfully")
-            
+
         except Exception as e:
             logger.error(f"Error sending to Slack: {e}")
+            raise
     
     def _extract_date_from_location(self, location: str) -> str:
         """Extract date from location string for sorting"""

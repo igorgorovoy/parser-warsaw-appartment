@@ -20,80 +20,72 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-
-def build_otodom_url() -> str:
-    """Build Otodom search URL from configuration parameters"""
-    # Otodom uses different URL structure
-    # NOTE: District in URL path causes 404 errors, so we search all Warsaw and filter client-side
-    base_url = "https://www.otodom.pl/pl/wyniki/wynajem/mieszkanie/mazowieckie/warszawa"
-    
-    params = []
-    
-    # District filtering is done CLIENT-SIDE in otodom_parser.py
-    # (Otodom doesn't support district in URL reliably)
-    
-    # Price range
+def build_otodom_searches() -> list:
+    """Build Otodom searches: flats and/or houses in Warsaw and around suburb towns"""
+    rooms_map = {'one': 'ONE', 'two': 'TWO', 'three': 'THREE', 'four': 'FOUR'}
+    rooms = rooms_map.get(os.getenv('ROOMS', 'three'))
     price_from = os.getenv('PRICE_FROM', '4000')
     price_to = os.getenv('PRICE_TO', '6000')
-    if price_from:
-        params.append(f"priceMin={price_from}")
-    if price_to:
-        params.append(f"priceMax={price_to}")
-    
-    # Area (powierzchnia)
     area_from = os.getenv('AREA_FROM', '60')
     area_to = os.getenv('AREA_TO', '90')
-    if area_from:
-        params.append(f"areaMin={area_from}")
-    if area_to:
-        params.append(f"areaMax={area_to}")
-    
-    # Number of rooms
-    rooms = os.getenv('ROOMS', 'three')
-    rooms_map = {'one': '1', 'two': '2', 'three': '3', 'four': '4'}
-    rooms_display = {'one': '1 room', 'two': '2 rooms', 'three': '3 rooms', 'four': '4 rooms'}
-    if rooms in rooms_map:
-        params.append(f"roomsNumber=%5B{rooms_map[rooms]}%5D")
-    
-    # Furniture - Otodom doesn't have direct filter, will get all
-    furniture = os.getenv('FURNITURE', 'yes')
-    
-    # Pets - Otodom doesn't have direct filter, will get all
-    pets = os.getenv('PETS', 'Tak')
-    
-    # Private only - Otodom doesn't have direct filter in URL, will get all
-    listing_type = os.getenv('LISTING_TYPE', 'private')
-    
-    # Get district(s) for logging (filtered client-side)
-    district_str = os.getenv('OTODOM_DISTRICT', 'wola')
-    
-    # Build URL
-    if params:
-        search_url = base_url + '?' + '&'.join(params)
-    else:
-        search_url = base_url
-    
-    # Log search criteria
+    property_types = [t.strip() for t in os.getenv('OTODOM_PROPERTY_TYPES', 'mieszkanie').split(',') if t.strip()]
+    suburbs = [s.strip() for s in os.getenv('OTODOM_SUBURBS', '').split(',') if s.strip()]
+    radius = os.getenv('OTODOM_SUBURB_RADIUS_KM', '10')
+
+    def query(property_type: str) -> str:
+        params = ["by=LATEST", "direction=DESC"]
+        if price_from:
+            params.append(f"priceMin={price_from}")
+        if price_to:
+            params.append(f"priceMax={price_to}")
+        if property_type == 'mieszkanie':
+            # Flats: exact rooms and area range
+            if rooms:
+                params.append(f"roomsNumber=%5B{rooms}%5D")
+            if area_from:
+                params.append(f"areaMin={area_from}")
+            if area_to:
+                params.append(f"areaMax={area_to}")
+        elif area_from:
+            # Houses: only minimum area, any number of rooms
+            params.append(f"areaMin={area_from}")
+        return '&'.join(params)
+
+    base = "https://www.otodom.pl/pl/wyniki/wynajem"
+    searches = []
+    if os.getenv('OTODOM_WARSAW_SEMI_DETACHED', 'false').lower() == 'true':
+        # Semi-detached houses anywhere in Warsaw, bus distance shown but not filtered.
+        # Goes first so 'dom / Warszawa' doesn't store them as filtered-out
+        searches.append({
+            'name': "bliźniak / Warszawa",
+            'url': f"{base}/dom/mazowieckie/warszawa?buildingType=%5BSEMI_DETACHED%5D&{query('dom')}",
+            'filter_districts': True,
+            'all_warsaw': True,
+            'bus_limit': 0,
+        })
+    for property_type in property_types:
+        searches.append({
+            'name': f"{property_type} / Warszawa",
+            'url': f"{base}/{property_type}/mazowieckie/warszawa?{query(property_type)}",
+            'filter_districts': True,
+        })
+        for suburb in suburbs:
+            # OTODOM_SUBURBS entries are Otodom location paths, e.g. piaseczynski/piaseczno/piaseczno
+            searches.append({
+                'name': f"{property_type} / {suburb.split('/')[-1]} +{radius} km",
+                'url': f"{base}/{property_type}/mazowieckie/{suburb}?distanceRadius={radius}&{query(property_type)}",
+                'filter_districts': False,
+            })
+
     logger.info("=" * 80)
-    logger.info("🔍 OTODOM SEARCH CRITERIA:")
-    # Handle multiple districts
-    if ',' in district_str:
-        districts_list = [d.strip().capitalize() for d in district_str.split(',')]
-        logger.info(f"   Districts:    {', '.join(districts_list)} (filtered client-side)")
-    else:
-        logger.info(f"   District:     {district_str.capitalize()} (filtered client-side)")
-    logger.info(f"   Rooms:        {rooms_display.get(rooms, rooms)}")
-    logger.info(f"   Price:        {price_from} - {price_to} PLN")
-    logger.info(f"   Area:         {area_from} - {area_to} m²")
-    logger.info(f"   Listing type: {listing_type} (filtered client-side)")
-    logger.info(f"   ⚠️  Note: Otodom URL API doesn't support filters for:")
-    logger.info(f"      - Furniture ({furniture}) - downloads all, no filter")
-    logger.info(f"      - Pets ({pets}) - downloads all, no filter")
-    logger.info(f"      - Private listings are filtered by checking 'prywatne' text")
+    logger.info("🔍 OTODOM SEARCHES:")
+    for s in searches:
+        logger.info(f"   {s['name']}: {s['url']}")
+    logger.info(f"   Warsaw districts: {os.getenv('OTODOM_DISTRICT', '(all)')}")
+    logger.info(f"   Bus stop max distance: {os.getenv('BUS_MAX_DISTANCE_M', '1500')} m (Warsaw), "
+                f"{os.getenv('SUBURB_BUS_MAX_DISTANCE_M', '5000')} m (suburbs)")
     logger.info("=" * 80)
-    logger.debug(f"Full URL: {search_url}")
-    return search_url
+    return searches
 
 
 def main():
@@ -123,8 +115,7 @@ def main():
     
     # Initialize Otodom parser
     if enable_otodom:
-        otodom_url = build_otodom_url()
-        otodom_parser = OtodomParser(otodom_url, SLACK_WEBHOOK_URL)
+        otodom_parser = OtodomParser(build_otodom_searches(), SLACK_WEBHOOK_URL)
         parsers.append(('Otodom', otodom_parser))
         logger.info("✅ Otodom parser enabled")
     
