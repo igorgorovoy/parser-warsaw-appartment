@@ -48,8 +48,11 @@ class OtodomParser(BaseParser):
 
     def __init__(self, searches: List[Dict], slack_webhook_url: str):
         """
-        searches: list of {'name': str, 'url': str, 'filter_districts': bool}
-        filter_districts=True means Warsaw listings must match OTODOM_DISTRICT.
+        searches: list of {'name': str, 'url': str, 'filter_districts': bool,
+                           'all_warsaw': bool (optional), 'bus_limit': int (optional)}
+        filter_districts=False lets non-Warsaw listings through,
+        all_warsaw=True skips the OTODOM_DISTRICT check for Warsaw listings,
+        bus_limit overrides the bus stop distance limit (0 = only show the distance).
         """
         super().__init__(slack_webhook_url)
         self.searches = searches
@@ -149,11 +152,11 @@ class OtodomParser(BaseParser):
     def _is_warsaw(parts: Dict) -> bool:
         return parts.get('city_or_village') == 'Warszawa'
 
-    def _district_allowed(self, parts: Dict, filter_districts: bool) -> bool:
-        """Warsaw listings must be in one of OTODOM_DISTRICT; suburbs pass if the search allows them"""
+    def _district_allowed(self, parts: Dict, search: Dict) -> bool:
+        """Warsaw listings must be in one of OTODOM_DISTRICT (unless all_warsaw); suburbs pass if the search allows them"""
         if not self._is_warsaw(parts):
-            return not filter_districts
-        if not self.districts:
+            return not search.get('filter_districts', True)
+        if search.get('all_warsaw') or not self.districts:
             return True
         names = normalize(' '.join(filter(None, [parts.get('district'), parts.get('residential')])))
         return any(d in names for d in self.districts)
@@ -227,7 +230,7 @@ class OtodomParser(BaseParser):
                         skipped_agency += 1
                         continue
                     parts = self._location_parts(item)
-                    if not self._district_allowed(parts, search.get('filter_districts', True)):
+                    if not self._district_allowed(parts, search):
                         skipped_district += 1
                         continue
 
@@ -241,6 +244,8 @@ class OtodomParser(BaseParser):
                     if coords:
                         route, stop, meters = nearest_stop(coords['lat'], coords['lon'])
                         limit = self.bus_max_city if self._is_warsaw(parts) else self.bus_max_suburb
+                        if 'bus_limit' in search:
+                            limit = search['bus_limit']
                         approx = ' (адреса приблизна)' if coords['approx'] else ''
                         listing['bus'] = f"🚌 {stop} ({route}) — {meters} м по прямій{approx}"
                         if limit and meters > limit:

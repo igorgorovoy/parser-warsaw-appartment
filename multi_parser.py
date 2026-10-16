@@ -53,6 +53,16 @@ def build_otodom_searches() -> list:
 
     base = "https://www.otodom.pl/pl/wyniki/wynajem"
     searches = []
+    if os.getenv('OTODOM_WARSAW_SEMI_DETACHED', 'false').lower() == 'true':
+        # Semi-detached houses anywhere in Warsaw, bus distance shown but not filtered.
+        # Goes first so 'dom / Warszawa' doesn't store them as filtered-out
+        searches.append({
+            'name': "bliźniak / Warszawa",
+            'url': f"{base}/dom/mazowieckie/warszawa?buildingType=%5BSEMI_DETACHED%5D&{query('dom')}",
+            'filter_districts': True,
+            'all_warsaw': True,
+            'bus_limit': 0,
+        })
     for property_type in property_types:
         searches.append({
             'name': f"{property_type} / Warszawa",
