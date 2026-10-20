@@ -44,6 +44,10 @@ BUS_STOPS = [
 ]
 
 
+# School: Okrężna 25a, 05-501 Jazgarzewszczyzna (OpenStreetMap geocoding)
+SCHOOL = ('Okrężna 25a', 52.062300, 20.986330)
+
+
 def distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Straight-line (haversine) distance in meters"""
     r = 6371000

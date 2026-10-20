@@ -19,7 +19,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from base_parser import BaseParser
-from bus_stops import nearest_stop
+from bus_stops import nearest_stop, distance_m, SCHOOL
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +75,8 @@ class OtodomParser(BaseParser):
         self.districts = [normalize(d.strip()) for d in os.getenv('OTODOM_DISTRICT', '').split(',') if d.strip()]
         self.bus_max_city = int(os.getenv('BUS_MAX_DISTANCE_M', '1500'))
         self.bus_max_suburb = int(os.getenv('SUBURB_BUS_MAX_DISTANCE_M', '5000'))
+        # Suburb listings within this distance of the school pass regardless of bus stops
+        self.school_max = int(os.getenv('SCHOOL_MAX_DISTANCE_M', '12000'))
         # isPrivateOwner from search JSON: listing published by the owner, not an agency
         self.private_only = os.getenv('LISTING_TYPE', 'private') == 'private'
 
@@ -248,8 +250,12 @@ class OtodomParser(BaseParser):
                             limit = search['bus_limit']
                         approx = ' (адреса приблизна)' if coords['approx'] else ''
                         listing['bus'] = f"🚌 {stop} ({route}) — {meters} м по прямій{approx}"
-                        if limit and meters > limit:
-                            logger.info(f"⏭️  {listing['title'][:50]} — {meters} m to {stop}, over {limit} m")
+                        school_m = round(distance_m(coords['lat'], coords['lon'], SCHOOL[1], SCHOOL[2]))
+                        listing['school'] = f"🏫 школа ({SCHOOL[0]}) — {school_m} м по прямій{approx}"
+                        near_school = not self._is_warsaw(parts) and self.school_max and school_m <= self.school_max
+                        if limit and meters > limit and not near_school:
+                            logger.info(f"⏭️  {listing['title'][:50]} — {meters} m to {stop}, "
+                                        f"{school_m} m to school, over {limit} m")
                             self._save_filtered(listing)
                             skipped_bus += 1
                             continue

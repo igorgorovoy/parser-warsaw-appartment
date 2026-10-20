@@ -251,7 +251,7 @@ class BaseParser(ABC):
                 }
             ])
 
-            extra = '\n'.join(filter(None, [listing.get('details'), listing.get('bus')]))
+            extra = '\n'.join(filter(None, [listing.get('details'), listing.get('bus'), listing.get('school')]))
             if extra:
                 blocks.append({
                     "type": "section",
